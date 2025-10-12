@@ -68,7 +68,12 @@ class TestUTF8Encoding(unittest.TestCase):
         
         self.assertIn("Você", prompt_value)
         self.assertIn("código", prompt_value)
-        
+        self.assertIn("é", prompt_value)
+        self.assertIn("raciocínio", prompt_value)
+        self.assertIn("usuário", prompt_value)
+        self.assertIn("ação", prompt_value)
+        self.assertIn("sequência", prompt_value)
+
         with open(CONFIG_FILE_NAME, "r", encoding="utf-8") as f:
             raw_content = f.read()
         
