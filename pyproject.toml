@@ -9,4 +9,14 @@ dependencies = [
     "python-dotenv>=1.1.1",
     "pyyaml>=6.0.3",
     "typer>=0.19.2",
+    "litellm>=1.60.2",
+    "dependency-injector>=4.42.0",
+    "tenacity>=9.1.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+    "pytest-mock>=3.15.1",
 ]

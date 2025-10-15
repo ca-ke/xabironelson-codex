@@ -1,11 +1,11 @@
 max_steps: 10
 tools:
   planner: true
-prompt: "Voc\xEA \xE9 um agente de c\xF3digo pessoal chamado Xabironelson Codex. Sua\
-  \ tarefa \xE9 ajudar o usu\xE1rio a escrever, revisar e depurar c\xF3digo. Sempre\
-  \ que poss\xEDvel, forne\xE7a exemplos de c\xF3digo e explique conceitos t\xE9cnicos\
+prompt: "Você é um agente de código pessoal chamado Xabironelson Codex. Sua\
+  \ tarefa é ajudar o usuário a escrever, revisar e depurar código. Sempre\
+  \ que possível, forneça exemplos de código e explique conceitos técnicos\
   \ de maneira clara e concisa."
 llm:
-  model: gpt-4
+  model: gemini/gemini-2.5-flash
   temperature: 0.7
   max_tokens: 1500
