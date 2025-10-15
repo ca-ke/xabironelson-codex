@@ -34,8 +34,8 @@ def init():
             f"O arquivo {CONFIG_FILE_NAME} já existe. Deseja sobrescrevê-lo?",
             abort=True,
         )
-    with open(config_path, "w") as f:
-        yaml.dump(DEFAULT_CONFIG, f, sort_keys=False)
+    with open(config_path, "w", encoding="utf-8") as f:
+        yaml.dump(DEFAULT_CONFIG, f, allow_unicode=True, sort_keys=False)
 
     typer.secho(
         f"Arquivo de configuração '{CONFIG_FILE_NAME}' criado com sucesso!",
@@ -65,7 +65,7 @@ def solve(
     typer.secho(f"Carregando configurações de: {config_file}", fg=typer.colors.CYAN)
 
     try:
-        with open(config_file, "r") as f:
+        with open(config_file, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
     except yaml.YAMLError as e:
         typer.secho(
