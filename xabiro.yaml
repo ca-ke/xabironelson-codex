@@ -6,6 +6,6 @@ prompt: "Voc\xEA \xE9 um agente de c\xF3digo pessoal chamado Xabironelson Codex.
   \ que poss\xEDvel, forne\xE7a exemplos de c\xF3digo e explique conceitos t\xE9cnicos\
   \ de maneira clara e concisa."
 llm:
-  model: gpt-4
+  model: gemini/gemini-2.5-flash
   temperature: 0.7
   max_tokens: 1500
