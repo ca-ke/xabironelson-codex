@@ -6,6 +6,8 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+ORIGINAL_LOG_LEVEL = logging.INFO
+
 
 class Logger(ABC):
     """Abstract base class for a logger."""
@@ -33,6 +35,21 @@ class Logger(ABC):
 
 class BasicLogger(Logger):
     """A basic implementation of the Logger interface using Python's built-in logging module."""
+
+    def __init__(self):
+        self._enabled = True
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    @enabled.setter
+    def enabled(self, value: bool):
+        self._enabled = value
+        if value:
+            logging.getLogger().setLevel(ORIGINAL_LOG_LEVEL)
+        else:
+            logging.getLogger().setLevel(logging.CRITICAL)
 
     def error(self, message: str, context: Optional[Dict[str, Any]] = None):
         """Log an error message with optional context."""
