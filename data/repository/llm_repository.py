@@ -1,4 +1,5 @@
 from data.client.lite_llm_client import LLMClient
+from data.dtos import FunctionCallResponseDTO, TextResponseDTO
 from data.mappers import ResponseMapper
 from domain.boundary.llm_repository import LLMRepository
 from domain.models.response_model import ResponseModel
@@ -27,9 +28,17 @@ class LLMRepositoryImpl(LLMRepository):
             messages=self._short_term_memory,
         )
 
-        self._short_term_memory.append(
-            {"role": "assistant", "content": response_dto.content}
-        )
+        if isinstance(response_dto, TextResponseDTO):
+            self._short_term_memory.append(
+                {"role": "assistant", "content": response_dto.content}
+            )
+        elif isinstance(response_dto, FunctionCallResponseDTO):
+            self._short_term_memory.append(
+                {
+                    "role": "assistant",
+                    "content": f"Function call: {response_dto.function_name} with arguments {response_dto.function_arguments}",
+                }
+            )
 
         domain_response = ResponseMapper.to_domain(response_dto)
 

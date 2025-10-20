@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -10,13 +10,44 @@ class MessageDTO(BaseModel):
     content: str = Field(..., description="The content of the message")
 
 
-class CompletionResponseDTO(BaseModel):
-    content: str = Field(..., description="The generated content")
-    tokens_used: int = Field(..., description="Number of tokens used in the completion")
-    model: str = Field(..., description="The model used for completion")
-    finish_reason: Optional[str] = Field(
-        None, description="Reason why the completion finished"
+class ResponseDTO(BaseModel):
+    tokens_used: int = Field(
+        ...,
+        description="Number of tokens used in the response",
     )
-    raw_response: Optional[dict[str, Any]] = Field(
-        None, description="Raw response from the LLM API"
+    model: str = Field(
+        ...,
+        description="The model used for generating the response",
     )
+    finish_reason: str | None = Field(
+        None,
+        description="Reason why the response generation finished",
+    )
+    raw_response: dict[str, Any] | None = Field(
+        None,
+        description="Raw response from the LLM API",
+    )
+
+    def get_response_type(self) -> str:
+        return "base"
+
+
+class TextResponseDTO(ResponseDTO):
+    content: str = Field(..., description="The generated text content")
+
+    def get_response_type(self) -> str:
+        return "text"
+
+
+class FunctionCallResponseDTO(ResponseDTO):
+    function_name: str = Field(
+        ...,
+        description="The name of the function to be called",
+    )
+    function_arguments: dict[str, Any] = Field(
+        ...,
+        description="Arguments for the function call",
+    )
+
+    def get_response_type(self) -> str:
+        return "function_call"

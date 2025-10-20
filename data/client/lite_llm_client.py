@@ -1,3 +1,4 @@
+import json
 import os
 from abc import ABC, abstractmethod
 from typing import Dict, List
@@ -5,7 +6,7 @@ from typing import Dict, List
 from litellm import completion
 from litellm.exceptions import APIError, AuthenticationError, RateLimitError, Timeout
 
-from data.dtos import CompletionResponseDTO
+from data.dtos import FunctionCallResponseDTO, ResponseDTO, TextResponseDTO
 from domain.models.model_errors import (
     LLMAuthenticationError,
     LLMRateLimitError,
@@ -13,6 +14,7 @@ from domain.models.model_errors import (
     LLMUnavailableError,
 )
 from models.config import LLMConfig
+from models.tool_model import ToolModel
 from utils.logger import Logger
 
 
@@ -20,17 +22,24 @@ class LLMClient(ABC):
     """Abstract base class for LLM client."""
 
     @abstractmethod
-    def complete(self, messages: List[Dict[str, str]]) -> CompletionResponseDTO:
+    def complete(self, messages: List[Dict[str, str]]) -> ResponseDTO:
         pass
 
 
 class LiteLLMClient(LLMClient):
-    def __init__(self, llm_config: LLMConfig, logger: Logger, prompt: str):
+    def __init__(
+        self,
+        llm_config: LLMConfig,
+        logger: Logger,
+        prompt: str,
+        tools: list[ToolModel],
+    ):
         self._llm_config = llm_config
         self._logger = logger
         self._prompt = prompt
+        self._tools = list(map(lambda tool: tool.model_dump(), tools))
 
-    def complete(self, messages: list[dict]) -> CompletionResponseDTO:
+    def complete(self, messages: list[dict]) -> ResponseDTO:
         try:
             self._logger.info(
                 "Calling LLM completion",
@@ -45,10 +54,48 @@ class LiteLLMClient(LLMClient):
                 model=self._llm_config.model,
                 prompt=self._prompt,
                 messages=messages,
+                tools=self._tools,
                 max_tokens=self._llm_config.max_tokens,
                 temperature=self._llm_config.temperature,
                 api_key=os.getenv(self._llm_config.api_key_env),
             )
+
+            self._logger.info(
+                "LLM response received", context={"response": response.model_dump()}
+            )
+
+            if not response.choices:
+                self._logger.error(
+                    "LLM completion returned no choices",
+                    context={
+                        "response": response.model_dump()
+                        if hasattr(response, "model_dump")
+                        else None
+                    },
+                )
+                raise LLMUnavailableError("O serviço LLM retornou nenhuma resposta.")
+
+            if response.choices[0].finish_reason == "tool_calls":
+                self._logger.info(
+                    "LLM made a tool call",
+                    context={"tool_call": response.choices[0].message.tool_calls},
+                )
+                return FunctionCallResponseDTO(
+                    function_name=response.choices[0]
+                    .message.tool_calls[0]
+                    .function.name,
+                    function_arguments=json.loads(
+                        response.choices[0].message.tool_calls[0].function.arguments
+                    ),
+                    tokens_used=response.usage.total_tokens,
+                    model=self._llm_config.model,
+                    finish_reason=response.choices[0].finish_reason,
+                    raw_response=(
+                        response.model_dump()
+                        if hasattr(response, "model_dump")
+                        else None
+                    ),
+                )
 
             content = response.choices[0].message.content
             tokens = response.usage.total_tokens
@@ -59,7 +106,7 @@ class LiteLLMClient(LLMClient):
                 context={"tokens_used": tokens, "finish_reason": finish_reason},
             )
 
-            return CompletionResponseDTO(
+            return TextResponseDTO(
                 content=content,
                 tokens_used=tokens,
                 model=self._llm_config.model,

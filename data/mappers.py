@@ -1,26 +1,32 @@
-from typing import Optional
-
-from data.dtos import CompletionResponseDTO
-from domain.models.response_model import ResponseModel
+from data.dtos import ResponseDTO
+from domain.models.response_model import (
+    FunctionCallResponseModel,
+    ResponseModel,
+    TextResponseModel,
+)
 
 
 class ResponseMapper:
     @staticmethod
-    def to_domain(dto: CompletionResponseDTO) -> ResponseModel:
-        return ResponseModel(
-            content=dto.content,
-            tokens_used=dto.tokens_used,
-        )
-
-    @staticmethod
-    def to_dto(
-        domain_model: ResponseModel,
-        model: str,
-        finish_reason: Optional[str] = None,
-    ) -> CompletionResponseDTO:
-        return CompletionResponseDTO(
-            content=domain_model.content,
-            tokens_used=domain_model.tokens_used,
-            model=model,
-            finish_reason=finish_reason,
-        )
+    def to_domain(dto: ResponseDTO) -> ResponseModel:
+        if dto.get_response_type() == "text":
+            return TextResponseModel(
+                content=dto.content,
+                tokens_used=dto.tokens_used,
+                model=dto.model,
+                raw_response=dto.raw_response,
+                finish_reason=dto.finish_reason,
+            )
+        elif dto.get_response_type() == "function_call":
+            return FunctionCallResponseModel(
+                function_name=dto.function_name,
+                function_arguments=dto.function_arguments,
+                tokens_used=dto.tokens_used,
+                model=dto.model,
+                raw_response=dto.raw_response,
+                finish_reason=dto.finish_reason,
+            )
+        else:
+            raise ValueError(
+                f"Unknown DTO response type: {dto.get_response_type()}",
+            )

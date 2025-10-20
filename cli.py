@@ -14,13 +14,88 @@ from data.client.lite_llm_client import LiteLLMClient
 from data.repository.llm_repository import LLMRepositoryImpl
 from domain.commands.registry import COMMAND_REGISTRY
 from domain.models.model_errors import LLMError
+from domain.models.response_model import FunctionCallResponseModel, TextResponseModel
+from domain.tools.read_file_content_tool import ReadFileContentTool
 from domain.use_case.command_use_case import CommandUseCase
+from domain.use_case.execute_tool_use_case import ExecuteToolUseCase
 from domain.use_case.generate_completion_use_case import GenerateCompletionUseCase
 from models.config import LLMConfig
+from models.tool_model import ToolModel
 from utils.logger import BasicLogger
 
 app = typer.Typer(help="Xabironelson Codex")
 console = Console()
+
+
+def display_text_response(
+    response: TextResponseModel,
+    conversation_turns: int,
+    total_tokens: int,
+) -> tuple[int, int]:
+    """Display a TextResponseModel and return updated counters."""
+    conversation_turns += 1
+    total_tokens += response.tokens_used
+
+    response_content = Markdown(response.content)
+    metadata_text = f"[bright_black]💬 Turno: {conversation_turns}  |  🎫 Tokens: {response.tokens_used}  |  📊 Total: {total_tokens}[/bright_black]"
+
+    response_panel = Panel(
+        response_content,
+        title="[bold bright_cyan]🤖 Xabiro[/bold bright_cyan]",
+        subtitle=metadata_text,
+        border_style="bright_cyan",
+        expand=False,
+    )
+    console.print(response_panel)
+    return conversation_turns, total_tokens
+
+
+def display_function_call_response(
+    response: FunctionCallResponseModel,
+    conversation_turns: int,
+    total_tokens: int,
+) -> tuple[int, int]:
+    """Display a FunctionCallResponseModel and return updated counters."""
+    conversation_turns += 1
+    total_tokens += response.tokens_used
+
+    function_call_text = (
+        f"🛠️ [bold yellow]Chamada de Função:[/bold yellow]\n\n"
+        f"- Nome da Função: [green]{response.function_name}[/green]\n"
+        f"- Argumentos: [green]{response.function_arguments}[/green]"
+    )
+
+    metadata_text = f"[bright_black]💬 Turno: {conversation_turns}  |  🎫 Tokens: {response.tokens_used}  |  📊 Total: {total_tokens}[/bright_black]"
+
+    function_call_panel = Panel(
+        function_call_text,
+        title="[bold bright_cyan]🤖 Xabiro[/bold bright_cyan]",
+        subtitle=metadata_text,
+        border_style="bright_cyan",
+        expand=False,
+    )
+    console.print(function_call_panel)
+    return conversation_turns, total_tokens
+
+
+def display_exit_message(
+    conversation_turns: int, total_tokens: int, farewell: bool = False
+):
+    """Display exit message with conversation statistics."""
+    console.print()
+    exit_table = Table(show_header=False, box=None, padding=(0, 1))
+    exit_table.add_column(justify="left")
+
+    if farewell:
+        exit_table.add_row("[bold bright_magenta]👋 Até mais![/bold bright_magenta]")
+    else:
+        exit_table.add_row("[bright_magenta]🔴 Encerrando Xabiro...[/bright_magenta]")
+
+    exit_table.add_row(
+        f"[bright_black]📊 Conversas: {conversation_turns}  |  Tokens totais: {total_tokens}[/bright_black]"
+    )
+
+    console.print(Panel(exit_table, border_style="bright_magenta", expand=False))
 
 
 @app.callback()
@@ -63,9 +138,22 @@ def repl(
         help="Caminho para o arquivo de configuração.",
     ),
 ):
-    llm_configuration, prompt_config, _, _ = initialize_system(config_file=config_file)
-    use_case = create_use_case(llm_configuration, prompt_config)
-    command_use_case = create_command_use_case(llm_configuration)
+    llm_configuration, prompt_config, _, _ = initialize_system(
+        config_file=config_file,
+    )
+    logger = BasicLogger()
+    tools = create_tools()
+    use_case = create_use_case(
+        llm_configuration,
+        prompt_config,
+        logger,
+        tools,
+    )
+    command_use_case = create_command_use_case(llm_configuration, logger)
+    execute_tool_use_case = create_tool_use_case(
+        logger,
+        tools,
+    )
 
     console.print()
     welcome_panel = Panel(
@@ -93,51 +181,15 @@ def repl(
             )
 
         except typer.Abort:
-            console.print()
-            exit_table = Table(show_header=False, box=None, padding=(0, 1))
-            exit_table.add_column(justify="left")
-            exit_table.add_row(
-                "[bright_magenta]🔴 Encerrando Xabiro...[/bright_magenta]"
-            )
-            exit_table.add_row(
-                f"[bright_black]📊 Conversas: {conversation_turns}  |  Tokens totais: {total_tokens}[/bright_black]"
-            )
-
-            console.print(
-                Panel(exit_table, border_style="bright_magenta", expand=False)
-            )
+            display_exit_message(conversation_turns, total_tokens)
             break
         except EOFError:
-            console.print()
-            exit_table = Table(show_header=False, box=None, padding=(0, 1))
-            exit_table.add_column(justify="left")
-            exit_table.add_row(
-                "[bright_magenta]🔴 Encerrando Xabiro...[/bright_magenta]"
-            )
-            exit_table.add_row(
-                f"[bright_black]📊 Conversas: {conversation_turns}  |  Tokens totais: {total_tokens}[/bright_black]"
-            )
-
-            console.print(
-                Panel(exit_table, border_style="bright_magenta", expand=False)
-            )
+            display_exit_message(conversation_turns, total_tokens)
             break
 
         # TODO: O negócio chama XabiroNelsonCodex o token de saída vai ser em pt
         if user_input.lower().strip() in ["sair"]:
-            console.print()
-            exit_table = Table(show_header=False, box=None, padding=(0, 1))
-            exit_table.add_column(justify="left")
-            exit_table.add_row(
-                "[bold bright_magenta]👋 Até mais![/bold bright_magenta]"
-            )
-            exit_table.add_row(
-                f"[bright_black]📊 Conversas: {conversation_turns}  |  Tokens totais: {total_tokens}[/bright_black]"
-            )
-
-            console.print(
-                Panel(exit_table, border_style="bright_magenta", expand=False)
-            )
+            display_exit_message(conversation_turns, total_tokens, farewell=True)
             break
 
         if not user_input.strip():
@@ -176,20 +228,55 @@ def repl(
                 console.print()
 
                 result = use_case.execute(user_input)
-                conversation_turns += 1
-                total_tokens += result.tokens_used
+                if isinstance(result, TextResponseModel):
+                    conversation_turns, total_tokens = display_text_response(
+                        result, conversation_turns, total_tokens
+                    )
+                elif isinstance(result, FunctionCallResponseModel):
+                    conversation_turns, total_tokens = display_function_call_response(
+                        result, conversation_turns, total_tokens
+                    )
 
-                response_content = Markdown(result.content)
-                metadata_text = f"[bright_black]💬 Turno: {conversation_turns}  |  🎫 Tokens: {result.tokens_used}  |  📊 Total: {total_tokens}[/bright_black]"
+                    execute_function = typer.confirm(
+                        "Deseja executar esta função agora?", default=True
+                    )
+                    if execute_function:
+                        console.print()
+                        console.print(
+                            "[dim cyan]   ⏳ Executando a função...[/dim cyan]"
+                        )
+                        console.print()
 
-                response_panel = Panel(
-                    response_content,
-                    title="[bold bright_cyan]🤖 Xabiro[/bold bright_cyan]",
-                    subtitle=metadata_text,
-                    border_style="bright_cyan",
-                    expand=False,
-                )
-                console.print(response_panel)
+                        tool_result = execute_tool_use_case.execute(
+                            tool_name=result.function_name,
+                            arguments=result.function_arguments,
+                        )
+
+                        console.print(
+                            Panel(
+                                "[bold green]✅ Função executada com sucesso![/bold green]",
+                                border_style="green",
+                                expand=False,
+                            )
+                        )
+
+                        response = use_case.execute(
+                            f"A função '{result.function_name}' foi executada com o seguinte resultado:\n{tool_result}"
+                        )
+
+                        if isinstance(response, TextResponseModel):
+                            conversation_turns, total_tokens = display_text_response(
+                                response, conversation_turns, total_tokens
+                            )
+
+                    else:
+                        console.print(
+                            Panel(
+                                "[bold yellow]⚠️ Função não executada.[/bold yellow]",
+                                border_style="yellow",
+                                expand=False,
+                            )
+                        )
 
             except LLMError as e:
                 console.print()
@@ -226,7 +313,12 @@ def solve(
     ),
 ):
     llm_configuration, prompt_config, verbose, _ = initialize_system(config_file)
-    use_case = create_use_case(llm_configuration, prompt_config)
+    tools = create_tools()
+    use_case = create_use_case(
+        llm_configuration,
+        prompt_config,
+        tools,
+    )
 
     typer.echo("\n[EXECUTANDO TAREFA]")
     try:
@@ -251,11 +343,8 @@ def solve(
         raise typer.Exit(code=1)
 
 
-def create_command_use_case(llm_configuration):
+def create_command_use_case(llm_configuration, logger):
     command_registry = COMMAND_REGISTRY
-
-    # TODO: To ligado que ta duplicado, mas logo menos vamos meter uma DI aqui
-    logger = BasicLogger()
 
     llm_config = LLMConfig(
         model=llm_configuration.get("model", "gpt-4"),
@@ -272,10 +361,21 @@ def create_command_use_case(llm_configuration):
     return command_use_case
 
 
-def create_use_case(llm_configuration, prompt_config):
-    typer.secho("Configurando dependências manualmente...", fg=typer.colors.BLUE)
+def create_tool_use_case(logger: BasicLogger, tools: list[ToolModel]):
+    tool_mapping = {}
+    for tool in tools:
+        tool_mapping[tool.name] = tool.instance
 
-    logger = BasicLogger()
+    use_case = ExecuteToolUseCase(
+        tools=tool_mapping,
+        logger=logger,
+        working_directory=os.getcwd(),
+    )
+    return use_case
+
+
+def create_use_case(llm_configuration, prompt_config, logger, tools):
+    typer.secho("Configurando dependências manualmente...", fg=typer.colors.BLUE)
 
     llm_config = LLMConfig(
         model=llm_configuration.get("model", "gpt-4"),
@@ -290,6 +390,7 @@ def create_use_case(llm_configuration, prompt_config):
         llm_config=llm_config_adapter,
         logger=logger,
         prompt=prompt_config,
+        tools=tools,
     )
 
     repository = LLMRepositoryImpl(
@@ -304,6 +405,24 @@ def create_use_case(llm_configuration, prompt_config):
 
     typer.secho("Sistema inicializado com sucesso!", fg=typer.colors.GREEN)
     return use_case
+
+
+def create_tools() -> list[ToolModel]:
+    return [
+        ToolModel(
+            name="read_file_content",
+            description="Read the content of a text file given its path.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                    }
+                },
+            },
+            instance=ReadFileContentTool(),
+        )
+    ]
 
 
 def initialize_system(config_file: Path):
