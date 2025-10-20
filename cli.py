@@ -15,6 +15,7 @@ from data.repository.llm_repository import LLMRepositoryImpl
 from domain.commands.registry import COMMAND_REGISTRY
 from domain.models.model_errors import LLMError
 from domain.models.response_model import FunctionCallResponseModel, TextResponseModel
+from domain.tools.list_files_inside_directory_tool import ListFilesInsideDirectoryTool
 from domain.tools.read_file_content_tool import ReadFileContentTool
 from domain.use_case.command_use_case import CommandUseCase
 from domain.use_case.execute_tool_use_case import ExecuteToolUseCase
@@ -313,10 +314,12 @@ def solve(
     ),
 ):
     llm_configuration, prompt_config, verbose, _ = initialize_system(config_file)
+    logger = BasicLogger()
     tools = create_tools()
     use_case = create_use_case(
         llm_configuration,
         prompt_config,
+        logger,
         tools,
     )
 
@@ -410,6 +413,19 @@ def create_use_case(llm_configuration, prompt_config, logger, tools):
 def create_tools() -> list[ToolModel]:
     return [
         ToolModel(
+            name="list_files_in_directory",
+            description="List all files in a given directory path.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "directory_path": {
+                        "type": "string",
+                    }
+                },
+            },
+            instance=ListFilesInsideDirectoryTool(),
+        ),
+        ToolModel(
             name="read_file_content",
             description="Read the content of a text file given its path.",
             parameters={
@@ -421,7 +437,7 @@ def create_tools() -> list[ToolModel]:
                 },
             },
             instance=ReadFileContentTool(),
-        )
+        ),
     ]
 
 

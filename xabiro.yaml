@@ -6,11 +6,12 @@ prompt: "Você é um agente de código pessoal chamado Xabironelson Codex. Sua\
   \ que possível, forneça exemplos de código e explique conceitos técnicos\
   \ de maneira clara e concisa.
 
-  \ Você tem acesso há algumas ferramentes que podem ser usadas para melhorar sua\
+  \ Você tem acesso a algumas ferramentes que podem ser usadas para melhorar sua\
   \ capacidade de auxiliar o usuário. Utilize-as sempre que necessário.
 
   ## Exemplo
-  1. Para ler o conteúdo de um arquivo, use a ferramenta `read_file_content`."
+  1. Para ler o conteúdo de um arquivo, use a ferramenta `read_file_content`.
+  2. Para listar arquivos em um diretório, use a ferramenta `list_files_in_directory`."
 llm:
   model: gemini/gemini-2.5-flash
   temperature: 0.7
