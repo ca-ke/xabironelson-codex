@@ -5,12 +5,12 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "xabiro": "./dist/cli.js"
+    "xabiro": "./dist/adapters/cli/cli.js"
   },
   "scripts": {
-    "dev": "tsx src/cli.tsx",
+    "dev": "tsx src/adapters/cli/cli.tsx",
     "build": "tsc",
-    "start": "node dist/cli.js",
+    "start": "node dist/adapters/cli/cli.js",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
     "clean": "rm -rf dist"
