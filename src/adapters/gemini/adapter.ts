@@ -1,7 +1,7 @@
 import type { CompletionResponse } from "@/core/entities/completion";
 import type { CompletionRequest } from "@/core/entities/completionRequest";
 import {
-  BaseProviderAdapter,
+  type ProviderAdapter,
   type ProviderConfig,
 } from "@/adapters/llm/provider-adapter";
 import {
@@ -13,12 +13,13 @@ import {
 import { geminiMapper } from "./mapper";
 import type { GenerateContentBody } from "./schemas";
 
-export class GeminiAdapter extends BaseProviderAdapter {
+export class GeminiAdapter implements ProviderAdapter {
+  private readonly config: ProviderConfig;
   private readonly baseURL: string;
   private readonly timeout: number;
 
   constructor(config: ProviderConfig) {
-    super(config);
+    this.config = config;
     this.baseURL =
       config.baseURL ?? "https://generativelanguage.googleapis.com/v1beta";
     this.timeout = config.timeout ?? 30000;

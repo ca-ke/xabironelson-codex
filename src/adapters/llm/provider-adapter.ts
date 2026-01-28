@@ -12,13 +12,3 @@ export interface ProviderConfig {
 export interface ProviderAdapter {
   complete(request: CompletionRequest): Promise<CompletionResponse>;
 }
-
-export abstract class BaseProviderAdapter implements ProviderAdapter {
-  protected readonly config: ProviderConfig;
-
-  constructor(config: ProviderConfig) {
-    this.config = config;
-  }
-
-  abstract complete(request: CompletionRequest): Promise<CompletionResponse>;
-}
