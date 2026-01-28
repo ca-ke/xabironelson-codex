@@ -1,20 +1,27 @@
 import type { CompletionResponse } from "@/core/entities/completion";
 import type { CompletionRequest } from "@/core/entities/completionRequest";
-import type { Message } from "@/core/entities/message";
 import {
   BaseProviderAdapter,
   type ProviderConfig,
 } from "@/adapters/llm/provider-adapter";
+import {
+  LLMAuthenticationError,
+  LLMRateLimitError,
+  LLMTimeoutError,
+  LLMUnavailableError,
+} from "@/core/errors/domain-errors";
 import { geminiMapper } from "./mapper";
 import type { GenerateContentBody } from "./schemas";
 
 export class GeminiAdapter extends BaseProviderAdapter {
   private readonly baseURL: string;
+  private readonly timeout: number;
 
   constructor(config: ProviderConfig) {
     super(config);
     this.baseURL =
       config.baseURL ?? "https://generativelanguage.googleapis.com/v1beta";
+    this.timeout = config.timeout ?? 30000;
   }
 
   async complete(request: CompletionRequest): Promise<CompletionResponse> {
@@ -22,23 +29,65 @@ export class GeminiAdapter extends BaseProviderAdapter {
     const body = this.buildRequestBody(request);
     const url = `${this.baseURL}/models/${modelName}:generateContent`;
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "x-goog-api-key": this.config.apiKey,
-        "Content-Type": "application/json",
-        ...this.config.headers,
-      },
-      body: JSON.stringify(body),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Gemini API error: ${response.status} - ${error}`);
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "x-goog-api-key": this.config.apiKey,
+          "Content-Type": "application/json",
+          ...this.config.headers,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        await this.handleErrorResponse(response);
+      }
+
+      const data = await response.json();
+      return geminiMapper(data, request.model);
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new LLMTimeoutError(`Request timed out after ${this.timeout}ms`);
+      }
+      if (
+        error instanceof LLMAuthenticationError ||
+        error instanceof LLMRateLimitError ||
+        error instanceof LLMTimeoutError ||
+        error instanceof LLMUnavailableError
+      ) {
+        throw error;
+      }
+      throw new LLMUnavailableError(
+        `Unexpected error: ${(error as Error).message}`,
+        error as Error,
+      );
+    } finally {
+      clearTimeout(timeoutId);
     }
+  }
 
-    const data = await response.json();
-    return geminiMapper(data, request.model);
+  private async handleErrorResponse(response: Response): Promise<never> {
+    const errorBody = await response.text();
+
+    switch (response.status) {
+      case 401:
+      case 403:
+        throw new LLMAuthenticationError(`Authentication failed: ${errorBody}`);
+      case 429:
+        throw new LLMRateLimitError(`Rate limit exceeded: ${errorBody}`);
+      case 408:
+      case 504:
+        throw new LLMTimeoutError(`Request timed out: ${errorBody}`);
+      default:
+        throw new LLMUnavailableError(
+          `Gemini API error ${response.status}: ${errorBody}`,
+        );
+    }
   }
 
   private extractModelName(model: string): string {
@@ -89,7 +138,12 @@ export class GeminiAdapter extends BaseProviderAdapter {
     return body;
   }
 
-  private mapRole(role: Message["role"]): "user" | "model" {
+  private mapRole(role: "user" | "assistant" | "system"): "user" | "model" {
+    if (role === "system") {
+      throw new Error(
+        "System role should be filtered before mapping. This is a bug.",
+      );
+    }
     return role === "assistant" ? "model" : "user";
   }
 }

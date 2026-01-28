@@ -3,15 +3,14 @@ import { type CompletionRequest } from "@/core/entities/completionRequest";
 
 export interface ProviderConfig {
   apiKey: string;
-  baseURL?: string;
   model: string;
+  baseURL?: string;
   headers?: Record<string, string>;
   timeout?: number;
 }
 
 export interface ProviderAdapter {
   complete(request: CompletionRequest): Promise<CompletionResponse>;
-  stream?(request: CompletionRequest): AsyncIterable<CompletionResponse>;
 }
 
 export abstract class BaseProviderAdapter implements ProviderAdapter {
