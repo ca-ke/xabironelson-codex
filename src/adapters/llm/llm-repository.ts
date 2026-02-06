@@ -27,4 +27,12 @@ export class LLMRepositoryImpl implements LLMRepository {
 
     yield* this.llmClient.streamComplete(messages);
   }
+
+  setModel(model: string): void {
+    this.llmClient.setModel(model);
+  }
+
+  getModel(): string {
+    return this.llmClient.getModel();
+  }
 }

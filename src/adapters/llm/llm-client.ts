@@ -4,15 +4,19 @@ import type { Message } from "@/core/entities/message";
 import type { Tool } from "@/core/entities/tool";
 import type { Logger } from "@/infrastructure/logging/logger";
 import type { ProviderAdapter, ProviderConfig } from "./provider-adapter";
+import { createProviderAdapter, resolveProvider } from "./provider-factory";
 
 export interface LLMClient {
   complete(messages: Message[]): Promise<CompletionResponse>;
   streamComplete(messages: Message[]): AsyncGenerator<string>;
+  setModel(model: string): void;
+  getModel(): string;
 }
 
 export class LLMClientImpl implements LLMClient {
-  private readonly adapter: ProviderAdapter;
-  private readonly model: string;
+  private adapter: ProviderAdapter;
+  private model: string;
+  private readonly config: ProviderConfig;
   private readonly logger: Logger;
   private readonly systemPrompt?: string;
   private readonly tools?: Tool[];
@@ -30,6 +34,7 @@ export class LLMClientImpl implements LLMClient {
   ) {
     this.adapter = adapter;
     this.model = config.model;
+    this.config = config;
     this.logger = logger;
     this.systemPrompt = systemPrompt;
     this.tools = tools;
@@ -62,6 +67,25 @@ export class LLMClientImpl implements LLMClient {
 
     const request = this.buildRequest(messages);
     yield* this.adapter.streamComplete(request);
+  }
+
+  setModel(model: string): void {
+    const oldProvider = resolveProvider(this.model);
+    const newProvider = resolveProvider(model);
+
+    if (oldProvider !== newProvider) {
+      this.adapter = createProviderAdapter(model, this.config);
+      this.logger.info("Provider adapter changed.", {
+        from: oldProvider,
+        to: newProvider,
+      });
+    }
+
+    this.model = model;
+  }
+
+  getModel(): string {
+    return this.model;
   }
 
   private buildRequest(messages: Message[]): CompletionRequest {

@@ -16,10 +16,11 @@ export interface TuiDependencies {
   repository: LLMRepository;
   completionUseCase: GenerateCompletionUseCase;
   logger: Logger;
+  initialModel: string;
 }
 
 export async function startTui(deps: TuiDependencies): Promise<void> {
-  const { completionUseCase, logger } = deps;
+  const { completionUseCase, logger, initialModel } = deps;
 
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,
@@ -42,6 +43,7 @@ export async function startTui(deps: TuiDependencies): Promise<void> {
   const replContainer = new REPLContainer(renderer, {
     completionUseCase,
     logger,
+    initialModel,
   });
 
   mainContainer.add(welcomePanel);
@@ -91,7 +93,12 @@ async function main(): Promise<void> {
     const repository = new LLMRepositoryImpl(llmClient);
     const completionUseCase = new GenerateCompletionUseCase(repository, logger);
 
-    await startTui({ repository, completionUseCase, logger });
+    await startTui({
+      repository,
+      completionUseCase,
+      logger,
+      initialModel: llmConfig.model,
+    });
   } catch (error) {
     console.error("Failed to initialize TUI:", (error as Error).message);
     process.exit(1);

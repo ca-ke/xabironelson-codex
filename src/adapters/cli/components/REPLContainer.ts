@@ -17,10 +17,12 @@ export interface REPLContainerOptions extends Omit<
 > {
   completionUseCase: GenerateCompletionUseCase;
   logger: Logger;
+  initialModel: string;
 }
 
 export class REPLContainer extends BoxRenderable {
   private messageList: MessageList;
+  private modelLine: TextRenderable;
   private statusLine: TextRenderable;
   private commandPalette: CommandPalette;
   private inputBar: InputBar;
@@ -29,7 +31,7 @@ export class REPLContainer extends BoxRenderable {
   private isLoading: boolean = false;
 
   constructor(ctx: RenderContext, options: REPLContainerOptions) {
-    const { completionUseCase, logger, ...boxOptions } = options;
+    const { completionUseCase, logger, initialModel, ...boxOptions } = options;
 
     super(ctx, {
       flexDirection: "column",
@@ -43,6 +45,11 @@ export class REPLContainer extends BoxRenderable {
 
     this.messageList = new MessageList(ctx, {
       borderColor: "gray",
+    });
+
+    this.modelLine = new TextRenderable(ctx, {
+      content: `Model: ${initialModel}`,
+      fg: "gray",
     });
 
     this.statusLine = new TextRenderable(ctx, {
@@ -78,6 +85,7 @@ export class REPLContainer extends BoxRenderable {
     });
 
     this.add(this.messageList);
+    this.add(this.modelLine);
     this.add(this.statusLine);
     this.add(this.commandPalette);
     this.add(this.inputBar);
@@ -88,6 +96,7 @@ export class REPLContainer extends BoxRenderable {
       "/exit": "Exit Xabiro",
       "/config": "Show current config",
       "/help": "Show help message",
+      "/model": "Change LLM model",
       "/toggle_logging": "Toggle logging on/off",
       "/cd": "Change working directory",
     };
@@ -104,6 +113,19 @@ export class REPLContainer extends BoxRenderable {
 
   private async handleSubmit(userInput: string): Promise<void> {
     if (!userInput.trim() || this.isLoading) {
+      return;
+    }
+
+    if (userInput.startsWith("/model")) {
+      this.inputBar.value = "";
+      const modelName = userInput.replace(/^\/model\s*/, "").trim();
+      if (!modelName) {
+        this.messageList.addText("Usage: /model <model_name>", "yellow");
+        return;
+      }
+      this.completionUseCase.setModel(modelName);
+      this.modelLine.content = `Model: ${modelName}`;
+      this.messageList.addText(`Model changed to: ${modelName}`, "cyan");
       return;
     }
 

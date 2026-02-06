@@ -34,6 +34,15 @@ export class GenerateCompletionUseCase {
     }
   }
 
+  setModel(model: string): void {
+    this.repository.setModel(model);
+    this.logger.info("Model changed.", { model });
+  }
+
+  getModel(): string {
+    return this.repository.getModel();
+  }
+
   async *executeStream(userInput: string): AsyncGenerator<string> {
     this.logger.info("Processing user input (stream).", {
       length: userInput.length,

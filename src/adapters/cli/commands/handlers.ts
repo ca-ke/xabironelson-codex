@@ -55,6 +55,7 @@ export function handleHelp(_args: CommandHandlerArgs): CommandResult {
 /help - Mostrar esta mensagem de ajuda
 /exit - Sair do Xabiro
 /config - Mostra a Config atual do Xabiro
+/model <modelo> - Alterar o modelo de LLM
 /toggle_logging - Ativar/Desativar logging
 /cd <diretório> - Alterar o diretório de trabalho do Xabiro`;
 
@@ -73,6 +74,16 @@ export function handleToggleLogging(args: CommandHandlerArgs): CommandResult {
   logger.enabled = !logger.enabled;
   const status = logger.enabled ? "ativado" : "desativado";
   return createCommandResult(`Logging ${status}.`, false);
+}
+
+export function handleModel(args: CommandHandlerArgs): CommandResult {
+  const { commandArguments } = args;
+
+  if (!commandArguments) {
+    return createCommandResult("Usage: /model <model_name>", false);
+  }
+
+  return createCommandResult(commandArguments.trim(), false);
 }
 
 export function handleConfig(args: CommandHandlerArgs): CommandResult {
