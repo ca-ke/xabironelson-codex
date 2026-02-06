@@ -11,7 +11,7 @@ import {
   LLMUnavailableError,
 } from "@/core/errors/domain-errors";
 import { geminiMapper } from "./mapper";
-import type { GenerateContentBody } from "./schemas";
+import type { GenerateContentBody, GeminiResponse } from "./schemas";
 
 export class GeminiAdapter implements ProviderAdapter {
   private readonly config: ProviderConfig;
@@ -49,7 +49,7 @@ export class GeminiAdapter implements ProviderAdapter {
         await this.handleErrorResponse(response);
       }
 
-      const data = await response.json();
+      const data: unknown = await response.json();
       return geminiMapper(data, request.model);
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
@@ -137,6 +137,84 @@ export class GeminiAdapter implements ProviderAdapter {
     }
 
     return body;
+  }
+
+  async *streamComplete(request: CompletionRequest): AsyncGenerator<string> {
+    const modelName = this.extractModelName(request.model);
+    const body = this.buildRequestBody(request);
+    const url = `${this.baseURL}/models/${modelName}:streamGenerateContent?alt=sse`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "x-goog-api-key": this.config.apiKey,
+          "Content-Type": "application/json",
+          ...this.config.headers,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        await this.handleErrorResponse(response);
+      }
+
+      if (!response.body) {
+        throw new LLMUnavailableError("Response body is null");
+      }
+
+      const decoder = new TextDecoder();
+      const reader: ReadableStreamDefaultReader<Uint8Array> =
+        response.body.getReader();
+      let buffer = "";
+
+      while (true) {
+        const result = await reader.read();
+        if (result.done) break;
+
+        buffer += decoder.decode(result.value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+
+          try {
+            const chunk = JSON.parse(jsonStr) as GeminiResponse;
+            const part = chunk?.candidates?.[0]?.content?.parts?.[0];
+            if (part && "text" in part) {
+              yield part.text;
+            }
+          } catch {
+            // skip malformed JSON chunks
+          }
+        }
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new LLMTimeoutError(`Request timed out after ${this.timeout}ms`);
+      }
+      if (
+        error instanceof LLMAuthenticationError ||
+        error instanceof LLMRateLimitError ||
+        error instanceof LLMTimeoutError ||
+        error instanceof LLMUnavailableError
+      ) {
+        throw error;
+      }
+      throw new LLMUnavailableError(
+        `Unexpected error: ${(error as Error).message}`,
+        error as Error,
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   private mapRole(role: "user" | "assistant" | "system"): "user" | "model" {

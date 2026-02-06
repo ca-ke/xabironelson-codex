@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "tsx src/adapters/cli/cli.tsx",
+    "tui": "bun run src/adapters/cli/tui.ts",
     "build": "tsc",
     "start": "node dist/adapters/cli/cli.js",
     "type-check": "tsc --noEmit",

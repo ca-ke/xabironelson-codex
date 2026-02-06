@@ -7,6 +7,7 @@ import type { ProviderAdapter, ProviderConfig } from "./provider-adapter";
 
 export interface LLMClient {
   complete(messages: Message[]): Promise<CompletionResponse>;
+  streamComplete(messages: Message[]): AsyncGenerator<string>;
 }
 
 export class LLMClientImpl implements LLMClient {
@@ -51,6 +52,16 @@ export class LLMClientImpl implements LLMClient {
     });
 
     return response;
+  }
+
+  async *streamComplete(messages: Message[]): AsyncGenerator<string> {
+    this.logger.info("Calling LLM stream completion", {
+      model: this.model,
+      messageCount: messages.length,
+    });
+
+    const request = this.buildRequest(messages);
+    yield* this.adapter.streamComplete(request);
   }
 
   private buildRequest(messages: Message[]): CompletionRequest {

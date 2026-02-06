@@ -11,4 +11,5 @@ export interface ProviderConfig {
 
 export interface ProviderAdapter {
   complete(request: CompletionRequest): Promise<CompletionResponse>;
+  streamComplete(request: CompletionRequest): AsyncGenerator<string>;
 }

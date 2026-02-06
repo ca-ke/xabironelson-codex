@@ -1,9 +1,11 @@
 import * as path from "path";
-import type { CommandResult } from "../../../core/entities/command";
-import { createCommandResult } from "../../../core/entities/command";
 import type { Logger } from "../../../infrastructure/logging/logger";
 import type { LLMConfig } from "../../../core/entities/config";
 import type { WorkingDirectoryManager } from "../../../infrastructure/patterns/working-directory-manager";
+import {
+  createCommandResult,
+  type CommandResult,
+} from "@/core/entities/command";
 
 export type CommandHandler = (args: CommandHandlerArgs) => CommandResult;
 
