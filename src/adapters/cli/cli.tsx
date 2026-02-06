@@ -4,21 +4,24 @@ import React from "react";
 import { render } from "ink";
 import { program } from "commander";
 import * as path from "path";
-import { CONFIG_FILE_NAME } from "../../constants.js";
-import { loadConfiguration, createConfigFile } from "../../infrastructure/config/config-loader.js";
-import { BasicLogger } from "../../infrastructure/logging/logger.js";
-import { OpenAILLMClient } from "../llm/llm-client.js";
-import { LLMRepositoryImpl } from "../llm/llm-repository.js";
-import { GenerateCompletionUseCase } from "../../application/use-cases/generate-completion.js";
-import { CommandUseCase } from "../../application/use-cases/execute-command.js";
-import { COMMAND_REGISTRY } from "./commands/registry.js";
-import { WorkingDirectoryManager } from "../../infrastructure/patterns/working-directory-manager.js";
-import { ReadFileContentTool } from "../persistence/read-file-tool.js";
-import { WriteFileContentTool } from "../persistence/write-file-tool.js";
-import { ListFilesInsideDirectoryTool } from "../persistence/list-files-tool.js";
-import { createToolModel } from "../../core/entities/tool.js";
-import { REPL } from "./repl.js";
-import { ExecuteToolUseCase } from "../../application/use-cases/execute-tool.js";
+import { CONFIG_FILE_NAME } from "../../constants";
+import {
+  loadConfiguration,
+  createConfigFile,
+} from "../../infrastructure/config/config-loader";
+import { BasicLogger } from "../../infrastructure/logging/logger";
+import { OpenAILLMClient } from "../llm/llm-client";
+import { LLMRepositoryImpl } from "../llm/llm-repository";
+import { GenerateCompletionUseCase } from "../../application/use-cases/generate-completion";
+import { CommandUseCase } from "../../application/use-cases/execute-command";
+import { COMMAND_REGISTRY } from "./commands/registry";
+import { WorkingDirectoryManager } from "../../infrastructure/patterns/working-directory-manager";
+import { ReadFileContentTool } from "../persistence/read-file-tool";
+import { WriteFileContentTool } from "../persistence/write-file-tool";
+import { ListFilesInsideDirectoryTool } from "../persistence/list-files-tool";
+import { createToolModel } from "../../core/entities/tool";
+import { REPL } from "./repl";
+import { ExecuteToolUseCase } from "../../application/use-cases/execute-tool";
 
 program
   .name("xabiro")

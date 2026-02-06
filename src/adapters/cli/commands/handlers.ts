@@ -1,9 +1,9 @@
-import * as path from 'path';
-import type { CommandResult } from '../../../core/entities/command.js';
-import { createCommandResult } from '../../../core/entities/command.js';
-import type { Logger } from '../../../infrastructure/logging/logger.js';
-import type { LLMConfig } from '../../../core/entities/config.js';
-import type { WorkingDirectoryManager } from '../../../infrastructure/patterns/working-directory-manager.js';
+import * as path from "path";
+import type { CommandResult } from "../../../core/entities/command";
+import { createCommandResult } from "../../../core/entities/command";
+import type { Logger } from "../../../infrastructure/logging/logger";
+import type { LLMConfig } from "../../../core/entities/config";
+import type { WorkingDirectoryManager } from "../../../infrastructure/patterns/working-directory-manager";
 
 export type CommandHandler = (args: CommandHandlerArgs) => CommandResult;
 
@@ -14,17 +14,21 @@ export interface CommandHandlerArgs {
   workingDirectoryManager?: WorkingDirectoryManager;
 }
 
-export function handleChangeWorkingDirectory(args: CommandHandlerArgs): CommandResult {
+export function handleChangeWorkingDirectory(
+  args: CommandHandlerArgs,
+): CommandResult {
   const { commandArguments, workingDirectoryManager } = args;
 
   if (!workingDirectoryManager) {
-    throw new Error("Dependency 'workingDirectoryManager' is required for the /cd command.");
+    throw new Error(
+      "Dependency 'workingDirectoryManager' is required for the /cd command.",
+    );
   }
 
   if (!commandArguments) {
     return createCommandResult(
       "Erro: O argumento 'new_directory' é obrigatório para o comando /cd.",
-      false
+      false,
     );
   }
 
@@ -33,7 +37,7 @@ export function handleChangeWorkingDirectory(args: CommandHandlerArgs): CommandR
     workingDirectoryManager.setDirectory(absDirectory);
     return createCommandResult(
       `Diretório de trabalho alterado para: ${absDirectory}`,
-      false
+      false,
     );
   } catch (error) {
     return createCommandResult((error as Error).message, false);
@@ -59,7 +63,9 @@ export function handleToggleLogging(args: CommandHandlerArgs): CommandResult {
   const { logger } = args;
 
   if (!logger) {
-    throw new Error("Dependency 'logger' is required for the /toggle_logging command.");
+    throw new Error(
+      "Dependency 'logger' is required for the /toggle_logging command.",
+    );
   }
 
   logger.enabled = !logger.enabled;
@@ -71,7 +77,9 @@ export function handleConfig(args: CommandHandlerArgs): CommandResult {
   const { llmConfig } = args;
 
   if (!llmConfig) {
-    throw new Error("Dependency 'llmConfig' is required for the /config command.");
+    throw new Error(
+      "Dependency 'llmConfig' is required for the /config command.",
+    );
   }
 
   const statusMsg = `Config atual do Xabiro:
