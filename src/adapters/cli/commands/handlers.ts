@@ -83,7 +83,11 @@ export function handleModel(args: CommandHandlerArgs): CommandResult {
     return createCommandResult("Usage: /model <model_name>", false);
   }
 
-  return createCommandResult(commandArguments.trim(), false);
+  const modelName = commandArguments.trim();
+  return createCommandResult(`Model changed to: ${modelName}`, false, {
+    type: "set_model",
+    payload: modelName,
+  });
 }
 
 export function handleConfig(args: CommandHandlerArgs): CommandResult {

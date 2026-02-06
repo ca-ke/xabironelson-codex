@@ -12,7 +12,7 @@ export interface CommandDefinition {
   description: string;
 }
 
-export interface CommandPaletteOptions extends Omit<BoxOptions, "position"> {
+export interface CommandPaletteOptions extends BoxOptions {
   commands: CommandDefinition[];
   onSelect?: (command: string) => void;
 }
@@ -27,14 +27,14 @@ export class CommandPalette extends BoxRenderable {
     const { commands, onSelect, ...boxOptions } = options;
 
     super(ctx, {
-      position: "absolute",
-      bottom: 4,
-      left: 1,
-      width: 40,
-      borderStyle: "single",
-      borderColor: "cyan",
-      backgroundColor: "#1a1a2e",
+      width: "100%",
+      borderStyle: "rounded",
+      borderColor: "#5eead4",
+      backgroundColor: "#0f172a",
+      paddingLeft: 1,
+      paddingRight: 1,
       visible: false,
+      flexDirection: "column",
       ...boxOptions,
     });
 
@@ -45,14 +45,14 @@ export class CommandPalette extends BoxRenderable {
     this.select = new SelectRenderable(ctx, {
       width: "100%",
       options: this.toSelectOptions(commands),
-      backgroundColor: "#1a1a2e",
-      textColor: "white",
-      focusedBackgroundColor: "#16213e",
-      focusedTextColor: "cyan",
-      selectedBackgroundColor: "#0f3460",
-      selectedTextColor: "cyan",
+      backgroundColor: "#0f172a",
+      textColor: "#94a3b8",
+      focusedBackgroundColor: "#1e293b",
+      focusedTextColor: "#5eead4",
+      selectedBackgroundColor: "#164e63",
+      selectedTextColor: "#5eead4",
       showDescription: true,
-      descriptionColor: "gray",
+      descriptionColor: "#475569",
       wrapSelection: true,
     });
 

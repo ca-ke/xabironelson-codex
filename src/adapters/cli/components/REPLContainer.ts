@@ -10,12 +10,14 @@ import { CommandPalette } from "./CommandPalette";
 import { COMMAND_REGISTRY } from "../commands/registry";
 import type { Logger } from "@/infrastructure/logging/logger";
 import type { GenerateCompletionUseCase } from "@/application/use-cases/generate-completion";
+import type { CommandUseCase } from "@/application/use-cases/execute-command";
 
 export interface REPLContainerOptions extends Omit<
   BoxOptions,
   "flexDirection"
 > {
   completionUseCase: GenerateCompletionUseCase;
+  commandUseCase: CommandUseCase;
   logger: Logger;
   initialModel: string;
 }
@@ -27,11 +29,18 @@ export class REPLContainer extends BoxRenderable {
   private commandPalette: CommandPalette;
   private inputBar: InputBar;
   private completionUseCase: GenerateCompletionUseCase;
+  private commandUseCase: CommandUseCase;
   private logger: Logger;
   private isLoading: boolean = false;
 
   constructor(ctx: RenderContext, options: REPLContainerOptions) {
-    const { completionUseCase, logger, initialModel, ...boxOptions } = options;
+    const {
+      completionUseCase,
+      commandUseCase,
+      logger,
+      initialModel,
+      ...boxOptions
+    } = options;
 
     super(ctx, {
       flexDirection: "column",
@@ -41,6 +50,7 @@ export class REPLContainer extends BoxRenderable {
     });
 
     this.completionUseCase = completionUseCase;
+    this.commandUseCase = commandUseCase;
     this.logger = logger;
 
     this.messageList = new MessageList(ctx, {
@@ -116,16 +126,16 @@ export class REPLContainer extends BoxRenderable {
       return;
     }
 
-    if (userInput.startsWith("/model")) {
+    if (userInput.startsWith("/")) {
       this.inputBar.value = "";
-      const modelName = userInput.replace(/^\/model\s*/, "").trim();
-      if (!modelName) {
-        this.messageList.addText("Usage: /model <model_name>", "yellow");
-        return;
+      const result = this.commandUseCase.execute(userInput);
+
+      this.modelLine.content = `Model: ${this.completionUseCase.getModel()}`;
+      this.messageList.addText(result.message, "cyan");
+
+      if (result.shouldExit) {
+        process.exit(0);
       }
-      this.completionUseCase.setModel(modelName);
-      this.modelLine.content = `Model: ${modelName}`;
-      this.messageList.addText(`Model changed to: ${modelName}`, "cyan");
       return;
     }
 

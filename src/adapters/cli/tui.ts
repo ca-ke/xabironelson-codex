@@ -1,6 +1,7 @@
 import { createCliRenderer, BoxRenderable } from "@opentui/core";
 import { WelcomePanel, REPLContainer } from "./components";
 import { GenerateCompletionUseCase } from "../../application/use-cases/generate-completion";
+import { CommandUseCase } from "../../application/use-cases/execute-command";
 import { BasicLogger } from "../../infrastructure/logging/logger";
 import { LLMRepositoryImpl } from "../llm/llm-repository";
 import { LLMClientImpl } from "../llm/llm-client";
@@ -9,18 +10,21 @@ import type { ProviderConfig } from "../llm/provider-adapter";
 import { loadConfiguration } from "../../infrastructure/config/config-loader";
 import type { LLMRepository } from "../../application/ports/llm-repository";
 import type { Logger } from "../../infrastructure/logging/logger";
+import { COMMAND_REGISTRY } from "./commands/registry";
+import { WorkingDirectoryManager } from "../../infrastructure/patterns/working-directory-manager";
 import * as path from "path";
 import { CONFIG_FILE_NAME } from "../../constants";
 
 export interface TuiDependencies {
   repository: LLMRepository;
   completionUseCase: GenerateCompletionUseCase;
+  commandUseCase: CommandUseCase;
   logger: Logger;
   initialModel: string;
 }
 
 export async function startTui(deps: TuiDependencies): Promise<void> {
-  const { completionUseCase, logger, initialModel } = deps;
+  const { completionUseCase, commandUseCase, logger, initialModel } = deps;
 
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,
@@ -42,6 +46,7 @@ export async function startTui(deps: TuiDependencies): Promise<void> {
 
   const replContainer = new REPLContainer(renderer, {
     completionUseCase,
+    commandUseCase,
     logger,
     initialModel,
   });
@@ -92,10 +97,19 @@ async function main(): Promise<void> {
 
     const repository = new LLMRepositoryImpl(llmClient);
     const completionUseCase = new GenerateCompletionUseCase(repository, logger);
+    const workingDirectoryManager = WorkingDirectoryManager.getInstance();
+    const commandUseCase = new CommandUseCase(
+      COMMAND_REGISTRY,
+      llmConfig,
+      logger,
+      workingDirectoryManager,
+      repository,
+    );
 
     await startTui({
       repository,
       completionUseCase,
+      commandUseCase,
       logger,
       initialModel: llmConfig.model,
     });
