@@ -23,15 +23,15 @@ export interface REPLContainerOptions extends Omit<
 }
 
 export class REPLContainer extends BoxRenderable {
-  private messageList: MessageList;
-  private modelLine: TextRenderable;
-  private statusLine: TextRenderable;
-  private commandPalette: CommandPalette;
-  private inputBar: InputBar;
-  private completionUseCase: GenerateCompletionUseCase;
-  private commandUseCase: CommandUseCase;
-  private logger: Logger;
-  private isLoading: boolean = false;
+  private readonly messageList: MessageList;
+  private readonly modelLine: TextRenderable;
+  private readonly statusLine: TextRenderable;
+  private readonly commandPalette: CommandPalette;
+  private readonly inputBar: InputBar;
+  private readonly completionUseCase: GenerateCompletionUseCase;
+  private readonly commandUseCase: CommandUseCase;
+  private readonly logger: Logger;
+  private isLoading = false;
 
   constructor(ctx: RenderContext, options: REPLContainerOptions) {
     const {
@@ -58,10 +58,7 @@ export class REPLContainer extends BoxRenderable {
     });
 
     this.logger.handler = (message: string): void => {
-      this.messageList.addMessage({
-        content: message,
-        color: "gray",
-      });
+      this.messageList.addText(message, "gray");
     };
 
     this.modelLine = new TextRenderable(ctx, {
@@ -91,9 +88,7 @@ export class REPLContainer extends BoxRenderable {
           this.logger.error("Submit error", { error: error.message });
         });
       },
-      onChange: (value: string): void => {
-        this.handleInputChange(value);
-      },
+      onChange: (value: string): void => this.handleInputChange(value),
     });
 
     this.add(this.messageList);
@@ -150,8 +145,9 @@ export class REPLContainer extends BoxRenderable {
       responseRenderable.streaming = false;
       responseRenderable.content = fullContent;
     } catch (error) {
-      this.messageList.addText(`Error: ${(error as Error).message}`, "red");
-      this.logger.error("REPL error", { error: (error as Error).message });
+      const errorMessage = (error as Error).message;
+      this.messageList.addText(`Error: ${errorMessage}`, "red");
+      this.logger.error("REPL error", { error: errorMessage });
     } finally {
       this.statusLine.content = "";
       this.isLoading = false;

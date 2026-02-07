@@ -11,40 +11,35 @@ export interface CommandPaletteOptions extends BoxOptions {
 }
 
 export class CommandPalette extends BoxRenderable {
-  private allCommands: string[];
-  private selectRenderable: SelectRenderable;
-  private onSelectCallback?: (command: string) => void;
-  private _hasSelectedValue: boolean;
+  private static readonly ITEM_HEIGHT = 2;
+  private static readonly BOX_PADDING = 2;
+
+  private readonly commands: string[];
+  private readonly selectRenderable: SelectRenderable;
+  private readonly onSelectCallback?: (command: string) => void;
+  private _hasSelectedValue = false;
 
   constructor(ctx: RenderContext, options: CommandPaletteOptions) {
     const { commands, onSelect, ...boxOptions } = options;
 
-    const itemHeight = 2;
-    const selectHeight = commands.length * itemHeight;
-    const boxHeight = selectHeight + 2;
+    const selectHeight = commands.length * CommandPalette.ITEM_HEIGHT;
 
     super(ctx, {
       width: "100%",
-      height: boxHeight,
+      height: selectHeight + CommandPalette.BOX_PADDING,
       visible: false,
       flexDirection: "column",
       ...boxOptions,
     });
 
-    this.allCommands = commands;
+    this.commands = commands;
     this.onSelectCallback = onSelect;
-    this._hasSelectedValue = false;
 
     this.selectRenderable = new SelectRenderable(ctx, {
       id: "menu",
       width: 60,
       height: selectHeight,
-      options: this.allCommands.map((value) => {
-        return {
-          name: value,
-          description: "",
-        };
-      }),
+      options: this.commands.map((name) => ({ name, description: "" })),
       backgroundColor: "#0f172a",
       textColor: "#94a3b8",
       focusedBackgroundColor: "#1e293b",
