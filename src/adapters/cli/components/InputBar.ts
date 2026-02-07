@@ -55,7 +55,7 @@ export class InputBar extends BoxRenderable {
       }
     });
 
-    this.input.on(InputRenderableEvents.CHANGE, () => {
+    this.input.on(InputRenderableEvents.INPUT, () => {
       this.onChangeCallback?.(this.input.value);
     });
 

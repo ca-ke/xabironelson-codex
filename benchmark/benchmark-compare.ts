@@ -27,6 +27,7 @@ interface BenchmarkResult {
     droppedFrames: number;
     totalFrames: number;
     backpressureEvents: number;
+    rawFrameTimes: number[];
   };
   memory: {
     heapUsedMB: number;
@@ -68,6 +69,8 @@ interface AggregatedResult {
   // Memory
   avgPeakHeapMB: number;
   stdDevPeakHeapMB: number;
+  avgPeakRssMB: number;
+  stdDevPeakRssMB: number;
   // Stdout
   avgWrites: number;
   avgBytes: number;
@@ -96,11 +99,24 @@ function stdDev(arr: number[]): number {
   );
 }
 
+function tCritical95(df: number): number {
+  // Inverse t-distribution for 95% CI (two-tailed, alpha=0.025 each tail)
+  // Binary search for t where tDistCDF(t, df) = 0.975
+  let lo = 0, hi = 20;
+  for (let i = 0; i < 100; i++) {
+    const mid = (lo + hi) / 2;
+    if (tDistCDF(mid, df) < 0.975) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
 function confidenceInterval95(arr: number[]): [number, number] {
   if (arr.length < 2) return [avg(arr), avg(arr)];
   const mean = avg(arr);
   const se = stdDev(arr) / Math.sqrt(arr.length);
-  const t = 2.262; // t-value for 95% CI with df=9 (10 samples)
+  const df = arr.length - 1;
+  const t = tCritical95(df);
   return [mean - t * se, mean + t * se];
 }
 
@@ -300,20 +316,31 @@ async function runBenchmark(
   });
 }
 
+function percentile(arr: number[], p: number): number {
+  if (arr.length === 0) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const index = Math.ceil((p / 100) * sorted.length) - 1;
+  return sorted[Math.max(0, index)];
+}
+
 function aggregateResults(results: BenchmarkResult[]): AggregatedResult | null {
   if (results.length === 0) return null;
 
   const times = results.map((r) => r.totalTimeMs);
   const frameTimes = results.map((r) => r.frame.avgFrameTimeMs);
-  const p95s = results.map((r) => r.frame.p95FrameTimeMs);
-  const p99s = results.map((r) => r.frame.p99FrameTimeMs);
   const fps = results.map((r) => r.frame.throughputFps);
   const dropped = results.map((r) => r.frame.droppedFrames);
   const heaps = results.map((r) => r.memory.peakHeapUsedMB);
+  const rssList = results.map((r) => r.memory.peakRssMB);
   const writes = results.map((r) => r.stdout.totalWrites);
   const bytes = results.map((r) => r.stdout.totalBytes);
 
   const avgFrameTime = avg(frameTimes);
+
+  // Compute true P95/P99 from combined raw frame times across all runs
+  const allRawFrameTimes = results.flatMap((r) => r.frame.rawFrameTimes);
+  const combinedP95 = Math.round(percentile(allRawFrameTimes, 95) * 100) / 100;
+  const combinedP99 = Math.round(percentile(allRawFrameTimes, 99) * 100) / 100;
 
   return {
     renderer: results[0].renderer,
@@ -328,17 +355,19 @@ function aggregateResults(results: BenchmarkResult[]): AggregatedResult | null {
       number,
       number,
     ],
-    // Frame (CORE METRIC)
+    // Frame (CORE METRIC) — P95/P99 from combined distribution
     avgFrameTimeMs: Math.round(avgFrameTime * 100) / 100,
     stdDevFrameTimeMs: Math.round(stdDev(frameTimes) * 100) / 100,
-    p95FrameTimeMs: Math.round(avg(p95s) * 100) / 100,
-    p99FrameTimeMs: Math.round(avg(p99s) * 100) / 100,
+    p95FrameTimeMs: combinedP95,
+    p99FrameTimeMs: combinedP99,
     avgFps: Math.round(avg(fps)),
-    target60FpsAchieved: avgFrameTime <= 16.67,
+    target60FpsAchieved: combinedP99 <= 16.67,
     droppedFrames: Math.round(avg(dropped)),
     // Memory
     avgPeakHeapMB: Math.round(avg(heaps) * 10) / 10,
     stdDevPeakHeapMB: Math.round(stdDev(heaps) * 10) / 10,
+    avgPeakRssMB: Math.round(avg(rssList) * 10) / 10,
+    stdDevPeakRssMB: Math.round(stdDev(rssList) * 10) / 10,
     // Stdout
     avgWrites: Math.round(avg(writes)),
     avgBytes: Math.round(avg(bytes)),
@@ -476,13 +505,13 @@ function printTimeTable(results: ComparisonResult[]) {
 
 function printMemoryTable(results: ComparisonResult[]) {
   console.log(
-    "\n  ┌─ PEAK HEAP MEMORY ───────────────────────────────────────────┐",
+    "\n  ┌─ PEAK MEMORY (Heap & RSS) ──────────────────────────────────────────────────────────────┐",
   );
   console.log(
-    "  │ Dataset      │ Framework │ Avg (MB) │ StdDev │    Ratio     │",
+    "  │ Dataset      │ Framework │ Heap (MB) │ StdDev │ RSS (MB) │ StdDev │   Heap Ratio   │",
   );
   console.log(
-    "  ├──────────────┼───────────┼──────────┼────────┼──────────────┤",
+    "  ├──────────────┼───────────┼───────────┼────────┼──────────┼────────┼────────────────┤",
   );
 
   for (const r of results) {
@@ -493,20 +522,20 @@ function printMemoryTable(results: ComparisonResult[]) {
 
     if (r.opentui) {
       console.log(
-        `  │ ${r.label.padEnd(12)} │ OpenTUI   │ ${String(r.opentui.avgPeakHeapMB).padStart(8)} │ ${String(r.opentui.stdDevPeakHeapMB).padStart(6)} │ ${ratio.padStart(12)} │`,
+        `  │ ${r.label.padEnd(12)} │ OpenTUI   │ ${String(r.opentui.avgPeakHeapMB).padStart(9)} │ ${String(r.opentui.stdDevPeakHeapMB).padStart(6)} │ ${String(r.opentui.avgPeakRssMB).padStart(8)} │ ${String(r.opentui.stdDevPeakRssMB).padStart(6)} │ ${ratio.padStart(14)} │`,
       );
     }
     if (r.ink) {
       console.log(
-        `  │ ${" ".repeat(12)} │ Ink       │ ${String(r.ink.avgPeakHeapMB).padStart(8)} │ ${String(r.ink.stdDevPeakHeapMB).padStart(6)} │              │`,
+        `  │ ${" ".repeat(12)} │ Ink       │ ${String(r.ink.avgPeakHeapMB).padStart(9)} │ ${String(r.ink.stdDevPeakHeapMB).padStart(6)} │ ${String(r.ink.avgPeakRssMB).padStart(8)} │ ${String(r.ink.stdDevPeakRssMB).padStart(6)} │                │`,
       );
     }
     console.log(
-      "  ├──────────────┼───────────┼──────────┼────────┼──────────────┤",
+      "  ├──────────────┼───────────┼───────────┼────────┼──────────┼────────┼────────────────┤",
     );
   }
   console.log(
-    "  └──────────────┴───────────┴──────────┴────────┴──────────────┘",
+    "  └──────────────┴───────────┴───────────┴────────┴──────────┴────────┴────────────────┘",
   );
 }
 
@@ -605,25 +634,30 @@ async function main() {
     console.log(`\n  Running benchmark: ${config.label}`);
     console.log("  " + "─".repeat(60));
 
-    const rawOpentui = await runBenchmarkWithIterations(
-      "benchmark/benchmark-opentui.ts",
-      config.target,
-      "OpenTUI",
-    );
+    // Randomize execution order per config to avoid ordering bias
+    const runners = [
+      { script: "benchmark/benchmark-opentui.ts", name: "OpenTUI" as const },
+      { script: "benchmark/benchmark-ink.tsx", name: "Ink" as const },
+    ];
+    if (Math.random() > 0.5) runners.reverse();
+    console.log(`    Execution order: ${runners.map((r) => r.name).join(" → ")}`);
 
-    const rawInk = await runBenchmarkWithIterations(
-      "benchmark/benchmark-ink.tsx",
-      config.target,
-      "Ink",
-    );
+    const rawResults: Record<string, BenchmarkResult[]> = {};
+    for (const runner of runners) {
+      rawResults[runner.name] = await runBenchmarkWithIterations(
+        runner.script,
+        config.target,
+        runner.name,
+      );
+    }
 
     results.push({
       target: config.target,
       label: config.label,
-      opentui: aggregateResults(rawOpentui),
-      ink: aggregateResults(rawInk),
-      rawOpentui,
-      rawInk,
+      opentui: aggregateResults(rawResults["OpenTUI"]),
+      ink: aggregateResults(rawResults["Ink"]),
+      rawOpentui: rawResults["OpenTUI"],
+      rawInk: rawResults["Ink"],
     });
   }
 

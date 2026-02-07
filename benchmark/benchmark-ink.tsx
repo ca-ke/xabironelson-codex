@@ -17,12 +17,14 @@ stdoutMeter.start();
 
 const App: React.FC = () => {
   const { exit } = useApp();
+  // Game-loop pattern: tokens accumulate in a mutable buffer, flushed at ~60fps
+  const pendingLines = useRef<Map<number, string>>(new Map());
   const [textLines, setTextLines] = useState<string[]>([]);
-  const linesMap = useRef<Map<number, string>>(new Map());
   const frameMeterRef = useRef<FrameMeter>(new FrameMeter());
   const memoryProfilerRef = useRef<MemoryProfiler>(new MemoryProfiler());
   const startTimeRef = useRef<number>(0);
-  const renderStartRef = useRef<bigint>(BigInt(0));
+  const doneRef = useRef(false);
+  const processedLinesRef = useRef(0);
 
   useLayoutEffect(() => {
     if (!isBenchmark) {
@@ -30,19 +32,16 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Measure render time
-  useLayoutEffect(() => {
-    if (renderStartRef.current !== BigInt(0)) {
-      const renderEnd = process.hrtime.bigint();
-      const frameTimeMs =
-        Number(renderEnd - renderStartRef.current) / 1_000_000;
-      frameMeterRef.current.recordFrameSync(frameTimeMs);
-    }
-  }, [textLines]);
-
   useEffect(() => {
     memoryProfilerRef.current.start(100);
     startTimeRef.current = Date.now();
+
+    // Game loop: flush pending buffer at ~60fps (16ms)
+    const tick = setInterval(() => {
+      if (pendingLines.current.size > 0) {
+        setTextLines(Array.from(pendingLines.current.values()));
+      }
+    }, 16);
 
     const processTokens = async () => {
       let processedLines = 0;
@@ -51,31 +50,38 @@ const App: React.FC = () => {
       for await (const token of createTextStream()) {
         if (processedLines >= TARGET_LINES) break;
 
-        // Update line content as words stream in
-        linesMap.current.set(token.lineIndex, token.accumulated);
+        // Only accumulate in the mutable buffer — no render here
+        pendingLines.current.set(token.lineIndex, token.accumulated);
 
         if (token.isComplete) {
           processedLines++;
         }
 
-        // Update React every 50 lines for smooth streaming
+        // Yield occasionally for smooth rendering (same cadence as OpenTUI)
         if (processedLines % 50 === 0 && token.isComplete) {
-          renderStartRef.current = process.hrtime.bigint();
-          setTextLines(Array.from(linesMap.current.values()));
           await new Promise((resolve) => setImmediate(resolve));
         }
       }
 
-      // Final update
-      renderStartRef.current = process.hrtime.bigint();
-      setTextLines(Array.from(linesMap.current.values()));
+      processedLinesRef.current = processedLines;
 
-      // Done streaming
+      // Final flush to ensure all content is rendered
+      setTextLines(Array.from(pendingLines.current.values()));
+
+      // Done streaming — stop the game loop and collect metrics
+      clearInterval(tick);
+      doneRef.current = true;
+
       setTimeout(() => {
         const elapsed = Date.now() - startTimeRef.current;
 
         memoryProfilerRef.current.stop();
         stdoutMeter.stop();
+
+        // Use stdout write times as the comparable frame metric
+        for (const wt of stdoutMeter.getWriteTimes()) {
+          frameMeterRef.current.recordFrameSync(wt);
+        }
 
         const frameMetrics = frameMeterRef.current.getMetrics();
         const memoryMetrics = memoryProfilerRef.current.getMetrics();
@@ -126,6 +132,8 @@ const App: React.FC = () => {
     };
 
     processTokens();
+
+    return () => clearInterval(tick);
   }, [exit]);
 
   return (

@@ -2,7 +2,24 @@ import type { ProviderAdapter, ProviderConfig } from "./provider-adapter";
 import { GeminiAdapter } from "../gemini/adapter";
 import { KimiAdapter } from "../kimi/adapter";
 
-type ProviderName = "gemini" | "kimi";
+export type ProviderName = "gemini" | "kimi";
+
+const PROVIDER_API_KEY_ENV: Record<ProviderName, string> = {
+  gemini: "GEMINI_API_KEY",
+  kimi: "KIMI_API_KEY",
+};
+
+export function resolveApiKey(provider: ProviderName): string {
+  const providerKey = process.env[PROVIDER_API_KEY_ENV[provider]];
+  if (providerKey) return providerKey;
+
+  const fallbackKey = process.env.LLM_API_KEY;
+  if (fallbackKey) return fallbackKey;
+
+  throw new Error(
+    `API key not found for provider "${provider}". Set ${PROVIDER_API_KEY_ENV[provider]} or LLM_API_KEY in your environment.`,
+  );
+}
 
 export function resolveProvider(model: string): ProviderName {
   // Explicit prefix: "gemini/gemini-2.5-flash" or "kimi/kimi-k2-turbo-preview"
@@ -27,7 +44,8 @@ export function createProviderAdapter(
   config: ProviderConfig,
 ): ProviderAdapter {
   const provider = resolveProvider(model);
-  const adapterConfig: ProviderConfig = { ...config, model };
+  const apiKey = resolveApiKey(provider);
+  const adapterConfig: ProviderConfig = { ...config, model, apiKey };
 
   switch (provider) {
     case "gemini":

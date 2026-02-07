@@ -11,6 +11,7 @@ export interface StreamToken {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEXT_FILE = join(__dirname, "gutenberg.txt");
+const LATENCY_MS = parseInt(process.env.BENCHMARK_LATENCY_MS || "0", 10);
 
 /**
  * Loads text from Gutenberg file and prepares a word-by-word stream.
@@ -37,6 +38,10 @@ export function prepareTextStream(): {
       let accumulated = "";
       for (let w = 0; w < words.length; w++) {
         accumulated += (w > 0 ? " " : "") + words[w];
+
+        if (LATENCY_MS > 0) {
+          await new Promise((resolve) => setTimeout(resolve, LATENCY_MS));
+        }
 
         yield {
           lineIndex,

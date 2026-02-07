@@ -1,50 +1,50 @@
+import type { SelectOption, BoxOptions, RenderContext } from "@opentui/core";
 import {
   BoxRenderable,
   SelectRenderable,
   SelectRenderableEvents,
-  type BoxOptions,
-  type RenderContext,
-  type SelectOption,
 } from "@opentui/core";
 
-export interface CommandDefinition {
-  name: string;
-  description: string;
-}
-
 export interface CommandPaletteOptions extends BoxOptions {
-  commands: CommandDefinition[];
+  commands: string[];
   onSelect?: (command: string) => void;
 }
 
 export class CommandPalette extends BoxRenderable {
-  private select: SelectRenderable;
-  private allCommands: CommandDefinition[];
-  private filteredCommands: CommandDefinition[];
+  private allCommands: string[];
+  private selectRenderable: SelectRenderable;
   private onSelectCallback?: (command: string) => void;
+  private _hasSelectedValue: boolean;
 
   constructor(ctx: RenderContext, options: CommandPaletteOptions) {
     const { commands, onSelect, ...boxOptions } = options;
 
+    const itemHeight = 2;
+    const selectHeight = commands.length * itemHeight;
+    const boxHeight = selectHeight + 2;
+
     super(ctx, {
       width: "100%",
-      borderStyle: "rounded",
-      borderColor: "#5eead4",
-      backgroundColor: "#0f172a",
-      paddingLeft: 1,
-      paddingRight: 1,
+      height: boxHeight,
       visible: false,
       flexDirection: "column",
       ...boxOptions,
     });
 
     this.allCommands = commands;
-    this.filteredCommands = commands;
     this.onSelectCallback = onSelect;
+    this._hasSelectedValue = false;
 
-    this.select = new SelectRenderable(ctx, {
-      width: "100%",
-      options: this.toSelectOptions(commands),
+    this.selectRenderable = new SelectRenderable(ctx, {
+      id: "menu",
+      width: 60,
+      height: selectHeight,
+      options: this.allCommands.map((value) => {
+        return {
+          name: value,
+          description: "",
+        };
+      }),
       backgroundColor: "#0f172a",
       textColor: "#94a3b8",
       focusedBackgroundColor: "#1e293b",
@@ -56,71 +56,31 @@ export class CommandPalette extends BoxRenderable {
       wrapSelection: true,
     });
 
-    this.select.on(
+    this.selectRenderable.on(
       SelectRenderableEvents.ITEM_SELECTED,
-      (_option: SelectOption) => {
-        const selected = this.select.getSelectedOption();
-        if (selected && this.onSelectCallback) {
-          this.onSelectCallback(selected.name);
-        }
+      (_: number, option: SelectOption) => {
+        this.onSelectCallback?.(option.name);
+        this._hasSelectedValue = true;
       },
     );
 
-    this.add(this.select);
+    this.add(this.selectRenderable);
   }
 
-  private toSelectOptions(commands: CommandDefinition[]): SelectOption[] {
-    return commands.map((cmd) => ({
-      name: cmd.name,
-      description: cmd.description,
-    }));
-  }
-
-  show(filter?: string): void {
-    if (filter) {
-      this.filteredCommands = this.allCommands.filter((cmd) =>
-        cmd.name.startsWith(filter),
-      );
-    } else {
-      this.filteredCommands = this.allCommands;
-    }
-
-    if (this.filteredCommands.length === 0) {
-      this.hide();
-      return;
-    }
-
-    this.select.options = this.toSelectOptions(this.filteredCommands);
-    this.select.setSelectedIndex(0);
+  show(): void {
     this.visible = true;
+    this.selectRenderable.focus();
   }
 
   hide(): void {
     this.visible = false;
   }
 
-  get isOpen(): boolean {
-    return this.visible;
+  get hasSelectedValue(): boolean {
+    return this._hasSelectedValue;
   }
 
-  getSelectedCommand(): string | null {
-    const selected = this.select.getSelectedOption();
-    return selected?.name ?? null;
-  }
-
-  moveUp(): void {
-    this.select.moveUp();
-  }
-
-  moveDown(): void {
-    this.select.moveDown();
-  }
-
-  selectCurrent(): void {
-    this.select.selectCurrent();
-  }
-
-  set onSelect(callback: (command: string) => void) {
-    this.onSelectCallback = callback;
+  consumeValue(): void {
+    this._hasSelectedValue = false;
   }
 }

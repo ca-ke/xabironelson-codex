@@ -94,14 +94,13 @@ async function run() {
 
   const elapsed = Date.now() - startTime;
 
-  // Collect frame times from the renderer's built-in stats
-  const rendererStats = renderer.getStats();
-  for (const ft of rendererStats.frameTimes) {
-    frameMeter.recordFrameSync(ft);
-  }
-
   memoryProfiler.stop();
   stdoutMeter.stop();
+
+  // Use stdout write times as the comparable frame metric (same as Ink)
+  for (const wt of stdoutMeter.getWriteTimes()) {
+    frameMeter.recordFrameSync(wt);
+  }
   renderer.destroy();
 
   const frameMetrics = frameMeter.getMetrics();

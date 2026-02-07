@@ -8,6 +8,7 @@ export interface FrameMetrics {
   droppedFrames: number;
   totalFrames: number;
   backpressureEvents: number;
+  rawFrameTimes: number[];
 }
 
 export interface MemoryMetrics {
@@ -90,6 +91,7 @@ export class FrameMeter {
         droppedFrames: this.droppedFrames,
         totalFrames: this.totalFrames,
         backpressureEvents: this.backpressureEvents,
+        rawFrameTimes: [],
       };
     }
 
@@ -108,6 +110,7 @@ export class FrameMeter {
       droppedFrames: this.droppedFrames,
       totalFrames: this.totalFrames,
       backpressureEvents: this.backpressureEvents,
+      rawFrameTimes: [...this.frameTimes],
     };
   }
 
@@ -253,6 +256,10 @@ export class StdoutMeter {
     const sorted = [...arr].sort((a, b) => a - b);
     const index = Math.ceil((p / 100) * sorted.length) - 1;
     return sorted[Math.max(0, index)];
+  }
+
+  getWriteTimes(): number[] {
+    return [...this.writeTimes];
   }
 
   getMetrics(): StdoutMetrics {

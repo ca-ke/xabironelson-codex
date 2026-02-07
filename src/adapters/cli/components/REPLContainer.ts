@@ -7,10 +7,10 @@ import {
 import { MessageList } from "./MessageList";
 import { InputBar } from "./InputBar";
 import { CommandPalette } from "./CommandPalette";
-import { COMMAND_REGISTRY } from "../commands/registry";
 import type { Logger } from "@/infrastructure/logging/logger";
 import type { GenerateCompletionUseCase } from "@/application/use-cases/generate-completion";
 import type { CommandUseCase } from "@/application/use-cases/execute-command";
+import { COMMAND_REGISTRY } from "../commands/registry";
 
 export interface REPLContainerOptions extends Omit<
   BoxOptions,
@@ -57,6 +57,13 @@ export class REPLContainer extends BoxRenderable {
       borderColor: "gray",
     });
 
+    this.logger.handler = (message: string): void => {
+      this.messageList.addMessage({
+        content: message,
+        color: "gray",
+      });
+    };
+
     this.modelLine = new TextRenderable(ctx, {
       content: `Model: ${initialModel}`,
       fg: "gray",
@@ -67,13 +74,8 @@ export class REPLContainer extends BoxRenderable {
       fg: "yellow",
     });
 
-    const commandDefinitions = Object.keys(COMMAND_REGISTRY).map((name) => ({
-      name,
-      description: this.getCommandDescription(name),
-    }));
-
     this.commandPalette = new CommandPalette(ctx, {
-      commands: commandDefinitions,
+      commands: Object.keys(COMMAND_REGISTRY),
       onSelect: (command: string): void => {
         this.inputBar.value = command;
         this.commandPalette.hide();
@@ -101,21 +103,9 @@ export class REPLContainer extends BoxRenderable {
     this.add(this.inputBar);
   }
 
-  private getCommandDescription(name: string): string {
-    const descriptions: Record<string, string> = {
-      "/exit": "Exit Xabiro",
-      "/config": "Show current config",
-      "/help": "Show help message",
-      "/model": "Change LLM model",
-      "/toggle_logging": "Toggle logging on/off",
-      "/cd": "Change working directory",
-    };
-    return descriptions[name] ?? name;
-  }
-
   private handleInputChange(value: string): void {
-    if (value.startsWith("/")) {
-      this.commandPalette.show(value);
+    if (value.startsWith("/") && !this.commandPalette.hasSelectedValue) {
+      this.commandPalette.show();
     } else {
       this.commandPalette.hide();
     }
@@ -136,6 +126,7 @@ export class REPLContainer extends BoxRenderable {
       if (result.shouldExit) {
         process.exit(0);
       }
+      this.commandPalette.consumeValue();
       return;
     }
 
@@ -156,7 +147,6 @@ export class REPLContainer extends BoxRenderable {
         responseRenderable.content = fullContent;
       }
 
-      // Finalize: disable streaming mode for stable render
       responseRenderable.streaming = false;
       responseRenderable.content = fullContent;
     } catch (error) {
