@@ -13,6 +13,17 @@ export const AgentSchema = z.object({
     z.object({
       name: z.string().min(1),
       description: z.string().min(1),
+      parameters: z.object({
+        type: z.string().min(1),
+        required: z.array(z.string()).min(1),
+        properties: z.record(
+          z.string().min(1),
+          z.object({
+            type: z.string().min(1),
+            description: z.string().min(1),
+          }),
+        ),
+      }),
     }),
   ),
 });

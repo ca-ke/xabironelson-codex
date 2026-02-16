@@ -147,10 +147,11 @@ export class REPLContainer extends BoxRenderable {
           this.messageList.addText(chunk.content);
         } else if (chunk.type === "function_call") {
           this.messageList.addFunctionCall(chunk.functionName);
-          await this.toolUseCase.execute(
+          const response = await this.toolUseCase.execute(
             chunk.functionName,
             chunk.functionArguments,
           );
+          this.messageList.addText(response);
         }
       }
 
