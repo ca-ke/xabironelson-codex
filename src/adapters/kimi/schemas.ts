@@ -27,39 +27,62 @@ export const KimiResponseSchema = z.object({
   usage: UsageSchema.optional(),
 });
 
-export interface KimiRequestBody {
-  model: string;
-  messages: { role: string; content: string }[];
-  max_tokens?: number;
-  temperature?: number;
-  stream?: boolean;
-  tools?: {
-    type: "function";
-    function: {
-      name: string;
-      description: string;
-      parameters?: Record<string, unknown>;
-    };
-  }[];
-}
+export const KimiRequestSchema = z.object({
+  model: z.string().min(1),
+  messages: z.array(MessageSchema),
+  temperature: z.number().min(0).max(2).optional(),
+  max_tokens: z.number().min(1).max(4096).optional(),
+  max_completion_tokens: z.number().min(1).max(4096).optional(),
+  top_p: z.number().min(0).max(1).optional(),
+  n: z.number().min(1).max(5).optional(),
+  presence_penalty: z.number().min(-2).max(2).optional(),
+  frequency_penalty: z.number().min(-2).max(2).optional(),
+  response_format: z.object({ type: z.string() }).optional(),
+  stream: z.boolean().optional(),
+  tools: z
+    .array(
+      z.object({
+        type: z.literal("function"),
+        function: z.object({
+          name: z.string().min(1),
+          description: z.string().min(1),
+          parameters: z.object({
+            type: z.string().min(1),
+            properties: z.record(z.string(), z.any()),
+            required: z.array(z.string()).optional(),
+          }),
+        }),
+      }),
+    )
+    .optional(),
+});
 
-export interface KimiStreamDelta {
-  choices?: {
-    index: number;
-    delta: {
-      content?: string;
-      tool_calls?: {
-        index: number;
-        id?: string;
-        type?: "function";
-        function?: {
-          name?: string;
-          arguments?: string;
-        };
-      }[];
-    };
-    finish_reason?: string | null;
-  }[];
-}
+export const KimiDeltaSchema = z.object({
+  choices: z.array(
+    z.object({
+      index: z.number().min(0),
+      delta: z.object({
+        role: z.enum(["assistant"]).optional(),
+        content: z.string().optional(),
+        tool_calls: z
+          .array(
+            z.object({
+              index: z.number().min(0),
+              id: z.string().uuid().optional(),
+              type: z.literal("function"),
+              function: z.object({
+                name: z.string().min(1).optional(),
+                arguments: z.string().optional(),
+              }),
+            }),
+          )
+          .optional(),
+      }),
+      finish_reason: z.string().nullable().optional(),
+    }),
+  ),
+});
 
+export type KimiDelta = z.infer<typeof KimiDeltaSchema>;
 export type KimiResponse = z.infer<typeof KimiResponseSchema>;
+export type KimiRequest = z.infer<typeof KimiRequestSchema>;

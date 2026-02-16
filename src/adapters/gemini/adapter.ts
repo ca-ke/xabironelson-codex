@@ -129,9 +129,9 @@ export class GeminiAdapter implements ProviderAdapter {
       body.tools = [
         {
           functionDeclarations: request.tools.map((t) => ({
-            name: t.name,
-            description: t.description,
-            parameters: t.parameters,
+            name: t.function.name,
+            description: t.function.description,
+            parameters: t.function.parameters,
           })),
         },
       ];

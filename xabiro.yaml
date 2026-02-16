@@ -8,64 +8,46 @@ prompt: "Você é um agente de código pessoal chamado Xabironelson Codex. Sua\
   \ capacidade de auxiliar o usuário. Utilize-as sempre que necessário.
   "
 tools:
-  [
-    {
-      name: "read_file_content",
-      description: "Lê o conteúdo de um arquivo",
+  - type: function
+    function:
+      name: read_file_content
+      description: Lê o conteúdo de um arquivo
       parameters:
-        {
-          type: "object",
-          required: ["file_path"],
-          properties:
-            {
-              "file_path":
-                {
-                  type: "string",
-                  description: "O caminho do arquivo a ser lido",
-                },
-            },
-        },
-    },
-    {
-      name: "list_files",
-      description: "Lista arquivos em um diretório",
+        type: object
+        required:
+          - file_path
+        properties:
+          file_path:
+            type: string
+            description: O caminho do arquivo a ser lido
+  - type: function
+    function:
+      name: list_files
+      description: Lista arquivos em um diretório
       parameters:
-        {
-          type: "object",
-          required: ["directory_path"],
-          properties:
-            {
-              "directory_path":
-                {
-                  type: "string",
-                  description: "O caminho do diretório a ser listado",
-                },
-            },
-        },
-    },
-    {
-      name: "write_file_content",
-      description: "Escreve conteúdo em um arquivo",
+        type: object
+        required:
+          - directory_path
+        properties:
+          directory_path:
+            type: string
+            description: O caminho do diretório a ser listado
+  - type: function
+    function:
+      name: write_file_content
+      description: Escreve conteúdo em um arquivo
       parameters:
-        {
-          type: "object",
-          required: ["file_path", "content"],
-          properties:
-            {
-              "file_path":
-                {
-                  type: "string",
-                  description: "O caminho do arquivo a ser escrito",
-                },
-              "content":
-                {
-                  type: "string",
-                  description: "O conteúdo a ser escrito no arquivo",
-                },
-            },
-        },
-    },
-  ]
+        type: object
+        required:
+          - file_path
+          - content
+        properties:
+          file_path:
+            type: string
+            description: O caminho do arquivo a ser escrito
+          content:
+            type: string
+            description: O conteúdo a ser escrito no arquivo
 llm:
   model: gemini/gemini-2.5-flash
   temperature: 0.7

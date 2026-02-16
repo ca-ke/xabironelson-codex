@@ -8,7 +8,6 @@ import { FrameMeter, MemoryProfiler, StdoutMeter } from "./frame-meter";
 
 const isBenchmark = process.env.BENCHMARK_MODE === "true";
 
-// Pre-load text BEFORE any measurement
 const { lines, stream: createTextStream } = prepareTextStream();
 const TARGET_LINES = parseInt(
   process.env.BENCHMARK_TARGET || String(lines.length),

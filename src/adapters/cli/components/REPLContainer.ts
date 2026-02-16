@@ -62,10 +62,6 @@ export class REPLContainer extends BoxRenderable {
       borderColor: "gray",
     });
 
-    this.logger.handler = (message: string): void => {
-      this.messageList.addText(message, "gray");
-    };
-
     this.modelLine = new TextRenderable(ctx, {
       content: `Model: ${initialModel}`,
       fg: "gray",
@@ -86,7 +82,7 @@ export class REPLContainer extends BoxRenderable {
     });
 
     this.inputBar = new InputBar(ctx, {
-      placeholder: "Type your message...",
+      placeholder: "Type your message... (Ctrl+L for logs)",
       onSubmit: (value: string): void => {
         this.commandPalette.hide();
         this.handleSubmit(value).catch((error: Error) => {
@@ -137,15 +133,18 @@ export class REPLContainer extends BoxRenderable {
       this.messageList.addText(`> ${userInput}`, "green");
       this.statusLine.content = "Processing...";
 
-      const responseRenderable = this.messageList.addMarkdown("", true);
-      const fullContent = "";
+      let fullContent = "";
 
       for await (const chunk of this.completionUseCase.executeStream(
         userInput,
       )) {
         if (chunk.type === "text") {
-          this.messageList.addText(chunk.content);
+          fullContent += chunk.content;
         } else if (chunk.type === "function_call") {
+          if (fullContent) {
+            this.messageList.addText(fullContent);
+            fullContent = "";
+          }
           this.messageList.addFunctionCall(chunk.functionName);
           const response = await this.toolUseCase.execute(
             chunk.functionName,
@@ -155,8 +154,9 @@ export class REPLContainer extends BoxRenderable {
         }
       }
 
-      responseRenderable.streaming = false;
-      responseRenderable.content = fullContent;
+      if (fullContent) {
+        this.messageList.addText(fullContent);
+      }
     } catch (error) {
       const errorMessage = (error as Error).message;
       this.messageList.addText(`Error: ${errorMessage}`, "red");

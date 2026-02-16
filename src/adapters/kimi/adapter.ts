@@ -1,28 +1,31 @@
-import type { CompletionResponse } from "@/core/entities/completion";
-import type { CompletionRequest } from "@/core/entities/completionRequest";
-import type { StreamChunk } from "@/core/entities/stream-chunk";
 import type {
   ProviderAdapter,
   ProviderConfig,
 } from "@/adapters/llm/provider-adapter";
+import type { CompletionResponse } from "@/core/entities/completion";
+import type { CompletionRequest } from "@/core/entities/completionRequest";
+import type { StreamChunk } from "@/core/entities/stream-chunk";
 import {
   LLMAuthenticationError,
   LLMRateLimitError,
   LLMTimeoutError,
   LLMUnavailableError,
 } from "@/core/errors/domain-errors";
+import type { Logger } from "@/infrastructure/logging/logger";
 import { kimiMapper } from "./mapper";
-import type { KimiRequestBody, KimiStreamDelta } from "./schemas";
+import { KimiDeltaSchema, type KimiRequest } from "./schemas";
 
 export class KimiAdapter implements ProviderAdapter {
   private readonly config: ProviderConfig;
   private readonly baseURL: string;
   private readonly timeout: number;
+  private readonly logger: Logger;
 
-  constructor(config: ProviderConfig) {
+  constructor(config: ProviderConfig, logger: Logger) {
     this.config = config;
     this.baseURL = config.baseURL ?? "https://api.moonshot.ai/v1";
     this.timeout = config.timeout ?? 30000;
+    this.logger = logger;
   }
 
   async complete(request: CompletionRequest): Promise<CompletionResponse> {
@@ -70,6 +73,9 @@ export class KimiAdapter implements ProviderAdapter {
         signal: controller.signal,
       });
 
+      this.logger.debug(`Request sent to ${url}`);
+      this.logger.debug(`Headers ${JSON.stringify(this.buildHeaders())}`);
+
       if (!response.ok) {
         await this.handleErrorResponse(response);
       }
@@ -82,7 +88,10 @@ export class KimiAdapter implements ProviderAdapter {
       const reader: ReadableStreamDefaultReader<Uint8Array> =
         response.body.getReader();
       let buffer = "";
-      const toolCallBuffer = new Map<number, { name: string; arguments: string }>();
+      const toolCallBuffer = new Map<
+        number,
+        { name: string; arguments: string }
+      >();
 
       while (true) {
         const result = await reader.read();
@@ -98,30 +107,34 @@ export class KimiAdapter implements ProviderAdapter {
           if (!jsonStr || jsonStr === "[DONE]") continue;
 
           try {
-            const chunk = JSON.parse(jsonStr) as KimiStreamDelta;
-            const delta = chunk?.choices?.[0]?.delta;
-            
-            // Handle text content
+            const parsed = KimiDeltaSchema.safeParse(jsonStr);
+            this.logger.debug(`Received message`, {
+              message: jsonStr,
+            });
+            if (!parsed.success) continue;
+
+            const delta = parsed.data.choices[0]?.delta;
+
             if (delta?.content) {
               yield {
                 type: "text",
                 content: delta.content,
               };
             }
-            
-            // Handle tool calls
+
             if (delta?.tool_calls) {
               for (const toolCall of delta.tool_calls) {
-                if (toolCall.index !== undefined) {
-                  const existing = toolCallBuffer.get(toolCall.index) || { name: "", arguments: "" };
-                  if (toolCall.function?.name) {
-                    existing.name = toolCall.function.name;
-                  }
-                  if (toolCall.function?.arguments) {
-                    existing.arguments += toolCall.function.arguments;
-                  }
-                  toolCallBuffer.set(toolCall.index, existing);
+                const existing = toolCallBuffer.get(toolCall.index) || {
+                  name: "",
+                  arguments: "",
+                };
+                if (toolCall.function?.name) {
+                  existing.name = toolCall.function.name;
                 }
+                if (toolCall.function?.arguments) {
+                  existing.arguments += toolCall.function.arguments;
+                }
+                toolCallBuffer.set(toolCall.index, existing);
               }
             }
           } catch {
@@ -129,14 +142,16 @@ export class KimiAdapter implements ProviderAdapter {
           }
         }
       }
-      
-      // Yield accumulated tool calls at the end
+
       for (const toolCall of toolCallBuffer.values()) {
         if (toolCall.name) {
           yield {
             type: "function_call",
             functionName: toolCall.name,
-            functionArguments: JSON.parse(toolCall.arguments || "{}") as Record<string, unknown>,
+            functionArguments: JSON.parse(toolCall.arguments || "{}") as Record<
+              string,
+              unknown
+            >,
           };
         }
       }
@@ -158,8 +173,8 @@ export class KimiAdapter implements ProviderAdapter {
   private buildRequestBody(
     request: CompletionRequest,
     stream: boolean,
-  ): KimiRequestBody {
-    const body: KimiRequestBody = {
+  ): KimiRequest {
+    const body: KimiRequest = {
       model: request.model,
       messages: request.messages.map((m) => ({
         role: m.role,
@@ -180,9 +195,9 @@ export class KimiAdapter implements ProviderAdapter {
       body.tools = request.tools.map((t) => ({
         type: "function" as const,
         function: {
-          name: t.name,
-          description: t.description,
-          parameters: t.parameters,
+          name: t.function.name,
+          description: t.function.description,
+          parameters: t.function.parameters,
         },
       }));
     }
@@ -209,6 +224,9 @@ export class KimiAdapter implements ProviderAdapter {
   }
 
   private handleError(error: unknown): never {
+    this.logger.error(`Error happened`, {
+      error: error instanceof Error ? error.message : error,
+    });
     if (error instanceof Error && error.name === "AbortError") {
       throw new LLMTimeoutError(`Request timed out after ${this.timeout}ms`);
     }

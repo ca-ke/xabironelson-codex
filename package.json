@@ -29,15 +29,17 @@
   "license": "MIT",
   "dependencies": {
     "@faker-js/faker": "^10.2.0",
+    "@opentui-ui/dialog": "^0.1.2",
     "@opentui/core": "^0.1.75",
+    "@opentui/solid": "^0.1.79",
     "commander": "^11.1.0",
     "dotenv": "^16.4.5",
     "ink": "^4.4.1",
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^5.0.1",
     "js-yaml": "^4.1.0",
-    "openai": "^4.67.3",
     "react": "^18.2.0",
+    "solid-js": "^1.9.9",
     "zod": "^3.22.4"
   },
   "devDependencies": {

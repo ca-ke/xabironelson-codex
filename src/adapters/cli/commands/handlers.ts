@@ -1,11 +1,12 @@
-import * as path from "path";
-import type { Logger } from "../../../infrastructure/logging/logger";
-import type { LLMConfig } from "../../../core/entities/config";
-import type { WorkingDirectoryManager } from "../../../infrastructure/patterns/working-directory-manager";
 import {
   createCommandResult,
   type CommandResult,
 } from "@/core/entities/command";
+import * as path from "path";
+import type { LLMConfig } from "../../../core/entities/config";
+import type { Logger } from "../../../infrastructure/logging/logger";
+import { loggingEventBus } from "../../../infrastructure/patterns/logging-event-bus";
+import type { WorkingDirectoryManager } from "../../../infrastructure/patterns/working-directory-manager";
 
 export type CommandHandler = (args: CommandHandlerArgs) => CommandResult;
 
@@ -71,9 +72,9 @@ export function handleToggleLogging(args: CommandHandlerArgs): CommandResult {
     );
   }
 
-  logger.enabled = !logger.enabled;
-  const status = logger.enabled ? "ativado" : "desativado";
-  return createCommandResult(`Logging ${status}.`, false);
+  loggingEventBus.emitToggle();
+
+  return createCommandResult("", false);
 }
 
 export function handleModel(args: CommandHandlerArgs): CommandResult {

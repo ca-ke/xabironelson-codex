@@ -1,7 +1,7 @@
-import type { ProviderAdapter, ProviderConfig } from "./provider-adapter";
+import type { Logger } from "@/infrastructure/logging/logger";
 import { GeminiAdapter } from "../gemini/adapter";
 import { KimiAdapter } from "../kimi/adapter";
-import type { Logger } from "@/infrastructure/logging/logger";
+import type { ProviderAdapter, ProviderConfig } from "./provider-adapter";
 
 export type ProviderName = "gemini" | "kimi";
 
@@ -23,7 +23,6 @@ export function resolveApiKey(provider: ProviderName): string {
 }
 
 export function resolveProvider(model: string): ProviderName {
-  // Explicit prefix: "gemini/gemini-2.5-flash" or "kimi/kimi-k2-turbo-preview"
   const slashIndex = model.indexOf("/");
   if (slashIndex !== -1) {
     const prefix = model.substring(0, slashIndex);
@@ -53,6 +52,6 @@ export function createProviderAdapter(
     case "gemini":
       return new GeminiAdapter(adapterConfig, logger);
     case "kimi":
-      return new KimiAdapter(adapterConfig);
+      return new KimiAdapter(adapterConfig, logger);
   }
 }

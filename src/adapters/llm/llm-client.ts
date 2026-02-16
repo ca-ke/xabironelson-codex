@@ -95,10 +95,12 @@ export class LLMClientImpl implements LLMClient {
       : messages;
 
     const tools = this.tools?.map((tool) => ({
-      type: "function",
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.parameters,
+      type: "function" as const,
+      function: {
+        name: tool.function.name,
+        description: tool.function.description,
+        parameters: tool.function.parameters,
+      },
     }));
 
     return {

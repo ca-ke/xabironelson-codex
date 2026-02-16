@@ -9,13 +9,14 @@ import { loadConfiguration } from "../../infrastructure/config/config-loader";
 import type { Logger } from "../../infrastructure/logging/logger";
 import { BasicLogger } from "../../infrastructure/logging/logger";
 import { WorkingDirectoryManager } from "../../infrastructure/patterns/working-directory-manager";
-import { GeminiAdapter } from "../gemini/adapter";
 import { LLMClientImpl } from "../llm/llm-client";
 import { LLMRepositoryImpl } from "../llm/llm-repository";
 import type { ProviderConfig } from "../llm/provider-adapter";
+import { createProviderAdapter } from "../llm/provider-factory";
 import { TOOL_REGISTRY } from "../tools/tool-registry";
 import { COMMAND_REGISTRY } from "./commands/registry";
 import { REPLContainer, WelcomePanel } from "./components";
+import { LogsDialog } from "./components/LogsDialog";
 
 export interface TuiDependencies {
   repository: LLMRepository;
@@ -38,6 +39,7 @@ export async function startTui(deps: TuiDependencies): Promise<void> {
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,
     targetFps: 60,
+    useMouse: true,
   });
 
   const root = renderer.root;
@@ -65,6 +67,9 @@ export async function startTui(deps: TuiDependencies): Promise<void> {
   mainContainer.add(replContainer);
 
   root.add(mainContainer);
+
+  const logsDialog = new LogsDialog(renderer);
+  root.add(logsDialog.getContainer());
 
   replContainer.focus();
 
@@ -94,10 +99,14 @@ async function main(): Promise<void> {
       tools: agentConfig.tools,
     };
 
-    const geminiAdapter = new GeminiAdapter(providerConfig, logger);
+    const initialAdapter = createProviderAdapter(
+      agentConfig.llm.model,
+      providerConfig,
+      logger,
+    );
 
     const llmClient = new LLMClientImpl(
-      geminiAdapter,
+      initialAdapter,
       providerConfig,
       logger,
       agentConfig.llm.prompt,
