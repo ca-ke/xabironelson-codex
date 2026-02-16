@@ -1,6 +1,7 @@
 import type { LLMRepository } from "@/application/ports/llm-repository";
 import type { ResponseModel } from "@/core/entities/response";
 import type { Message } from "@/core/entities/message";
+import type { StreamChunk } from "@/core/entities/stream-chunk";
 import type { LLMClient } from "./llm-client";
 
 export class LLMRepositoryImpl implements LLMRepository {
@@ -17,7 +18,7 @@ export class LLMRepositoryImpl implements LLMRepository {
     return this.llmClient.complete(messages);
   }
 
-  async *streamComplete(userInput: string): AsyncGenerator<string> {
+  async *streamComplete(userInput: string): AsyncGenerator<StreamChunk> {
     const messages: Message[] = [
       {
         role: "user",

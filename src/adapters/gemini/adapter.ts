@@ -1,34 +1,42 @@
-import type { CompletionResponse } from "@/core/entities/completion";
-import type { CompletionRequest } from "@/core/entities/completionRequest";
 import {
   type ProviderAdapter,
   type ProviderConfig,
 } from "@/adapters/llm/provider-adapter";
+import type { CompletionResponse } from "@/core/entities/completion";
+import type { CompletionRequest } from "@/core/entities/completionRequest";
+import type { StreamChunk } from "@/core/entities/stream-chunk";
 import {
   LLMAuthenticationError,
   LLMRateLimitError,
   LLMTimeoutError,
   LLMUnavailableError,
 } from "@/core/errors/domain-errors";
+import type { Logger } from "@/infrastructure/logging/logger";
 import { geminiMapper } from "./mapper";
-import type { GenerateContentBody, GeminiResponse } from "./schemas";
+import type { GeminiResponse, GenerateContentBody } from "./schemas";
 
 export class GeminiAdapter implements ProviderAdapter {
   private readonly config: ProviderConfig;
   private readonly baseURL: string;
   private readonly timeout: number;
+  private readonly logger: Logger;
 
-  constructor(config: ProviderConfig) {
+  constructor(config: ProviderConfig, logger: Logger) {
     this.config = config;
     this.baseURL =
       config.baseURL ?? "https://generativelanguage.googleapis.com/v1beta";
     this.timeout = config.timeout ?? 30000;
+    this.logger = logger;
   }
 
   async complete(request: CompletionRequest): Promise<CompletionResponse> {
     const modelName = this.extractModelName(request.model);
     const body = this.buildRequestBody(request);
     const url = `${this.baseURL}/models/${modelName}:generateContent`;
+
+    this.logger.info(
+      `Completing request with model ${modelName} with body ${JSON.stringify(body)}`,
+    );
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -139,10 +147,16 @@ export class GeminiAdapter implements ProviderAdapter {
     return body;
   }
 
-  async *streamComplete(request: CompletionRequest): AsyncGenerator<string> {
+  async *streamComplete(
+    request: CompletionRequest,
+  ): AsyncGenerator<StreamChunk> {
     const modelName = this.extractModelName(request.model);
     const body = this.buildRequestBody(request);
     const url = `${this.baseURL}/models/${modelName}:streamGenerateContent?alt=sse`;
+
+    this.logger.info(
+      `Completing request with model ${modelName} with body ${JSON.stringify(body)}`,
+    );
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -171,6 +185,7 @@ export class GeminiAdapter implements ProviderAdapter {
       const reader: ReadableStreamDefaultReader<Uint8Array> =
         response.body.getReader();
       let buffer = "";
+      let accumulatedFunctionCall: { name: string; args: string } | undefined;
 
       while (true) {
         const result = await reader.read();
@@ -188,13 +203,38 @@ export class GeminiAdapter implements ProviderAdapter {
           try {
             const chunk = JSON.parse(jsonStr) as GeminiResponse;
             const part = chunk?.candidates?.[0]?.content?.parts?.[0];
-            if (part && "text" in part) {
-              yield part.text;
+            if (!part) continue;
+
+            if ("functionCall" in part && part.functionCall) {
+              if (accumulatedFunctionCall) {
+                yield {
+                  type: "function_call",
+                  functionName: accumulatedFunctionCall.name,
+                  functionArguments: JSON.parse(accumulatedFunctionCall.args) as Record<string, unknown>,
+                };
+              }
+              accumulatedFunctionCall = {
+                name: part.functionCall.name,
+                args: JSON.stringify(part.functionCall.args || {}),
+              };
+            } else if (part && "text" in part) {
+              yield {
+                type: "text",
+                content: part.text,
+              };
             }
           } catch {
             // skip malformed JSON chunks
           }
         }
+      }
+
+      if (accumulatedFunctionCall) {
+        yield {
+          type: "function_call",
+          functionName: accumulatedFunctionCall.name,
+          functionArguments: JSON.parse(accumulatedFunctionCall.args) as Record<string, unknown>,
+        };
       }
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {

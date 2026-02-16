@@ -1,53 +1,21 @@
-export interface LLMConfig {
-  model: string;
-  temperature?: number;
-  max_tokens?: number;
-  api_key_env: string;
-  prompt?: string | { value: string };
-}
+import { z } from "zod";
 
-export interface AgentConfig {
-  llm: LLMConfig;
-  prompt?: string | { value: string };
-  max_steps?: number;
-  tools?: Record<string, boolean>;
-}
+export const AgentSchema = z.object({
+  llm: z.object({
+    model: z.string().min(1),
+    api_key_env: z.string().min(1),
+    temperature: z.number().min(0).max(1).optional(),
+    max_tokens: z.number().min(1).optional(),
+    prompt: z.string().min(1).optional(),
+  }),
+  max_steps: z.number().min(1),
+  tools: z.array(
+    z.object({
+      name: z.string().min(1),
+      description: z.string().min(1),
+    }),
+  ),
+});
 
-export function parseAgentConfig(rawConfig: unknown): AgentConfig {
-  if (!rawConfig || typeof rawConfig !== "object") {
-    throw new Error("Invalid configuration: must be an object");
-  }
-
-  const config = rawConfig as Record<string, unknown>;
-
-  // Extract LLM config
-  const llmRaw = config.llm;
-  if (!llmRaw || typeof llmRaw !== "object") {
-    throw new Error("Invalid configuration: llm section is required");
-  }
-
-  const llm = llmRaw as Record<string, unknown>;
-  const model = llm.model as string;
-  if (!model) {
-    throw new Error("Invalid configuration: llm.model is required");
-  }
-
-  const apiKeyEnv = (llm.api_key_env as string) || "GEMINI_API_KEY";
-
-  const llmConfig: LLMConfig = {
-    model,
-    api_key_env: apiKeyEnv,
-    temperature: llm.temperature as number | undefined,
-    max_tokens: llm.max_tokens as number | undefined,
-    prompt: llm.prompt as string | { value: string } | undefined,
-  };
-
-  const agentConfig: AgentConfig = {
-    llm: llmConfig,
-    prompt: config.prompt as string | { value: string } | undefined,
-    max_steps: config.max_steps as number | undefined,
-    tools: config.tools as Record<string, boolean> | undefined,
-  };
-
-  return agentConfig;
-}
+export type AgentConfig = z.infer<typeof AgentSchema>;
+export type LLMConfig = AgentConfig["llm"];

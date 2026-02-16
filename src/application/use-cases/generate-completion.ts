@@ -1,10 +1,11 @@
-import type { LLMRepository } from "../ports/llm-repository.js";
-import { LLMUnavailableError } from "../../core/errors/domain-errors.js";
-import type { Logger } from "../../infrastructure/logging/logger.js";
 import {
   isFunctionCallResponse,
   type ResponseModel,
 } from "@/core/entities/response.js";
+import type { StreamChunk } from "@/core/entities/stream-chunk.js";
+import { LLMUnavailableError } from "../../core/errors/domain-errors.js";
+import type { Logger } from "../../infrastructure/logging/logger.js";
+import type { LLMRepository } from "../ports/llm-repository.js";
 
 export class GenerateCompletionUseCase {
   constructor(
@@ -43,21 +44,11 @@ export class GenerateCompletionUseCase {
     return this.repository.getModel();
   }
 
-  async *executeStream(userInput: string): AsyncGenerator<string> {
+  async *executeStream(userInput: string): AsyncGenerator<StreamChunk> {
     this.logger.info("Processing user input (stream).", {
       length: userInput.length,
     });
 
-    try {
-      yield* this.repository.streamComplete(userInput);
-    } catch (error) {
-      if (error instanceof LLMUnavailableError) {
-        this.logger.error("LLM service unavailable.", {
-          error: (error as Error).message,
-        });
-        throw error;
-      }
-      throw error;
-    }
+    yield* this.repository.streamComplete(userInput);
   }
 }

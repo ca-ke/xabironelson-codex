@@ -33,12 +33,31 @@ export interface KimiRequestBody {
   max_tokens?: number;
   temperature?: number;
   stream?: boolean;
+  tools?: {
+    type: "function";
+    function: {
+      name: string;
+      description: string;
+      parameters?: Record<string, unknown>;
+    };
+  }[];
 }
 
 export interface KimiStreamDelta {
   choices?: {
     index: number;
-    delta: { content?: string };
+    delta: {
+      content?: string;
+      tool_calls?: {
+        index: number;
+        id?: string;
+        type?: "function";
+        function?: {
+          name?: string;
+          arguments?: string;
+        };
+      }[];
+    };
     finish_reason?: string | null;
   }[];
 }

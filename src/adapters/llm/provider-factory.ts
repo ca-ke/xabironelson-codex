@@ -1,6 +1,7 @@
 import type { ProviderAdapter, ProviderConfig } from "./provider-adapter";
 import { GeminiAdapter } from "../gemini/adapter";
 import { KimiAdapter } from "../kimi/adapter";
+import type { Logger } from "@/infrastructure/logging/logger";
 
 export type ProviderName = "gemini" | "kimi";
 
@@ -42,6 +43,7 @@ export function resolveProvider(model: string): ProviderName {
 export function createProviderAdapter(
   model: string,
   config: ProviderConfig,
+  logger: Logger,
 ): ProviderAdapter {
   const provider = resolveProvider(model);
   const apiKey = resolveApiKey(provider);
@@ -49,7 +51,7 @@ export function createProviderAdapter(
 
   switch (provider) {
     case "gemini":
-      return new GeminiAdapter(adapterConfig);
+      return new GeminiAdapter(adapterConfig, logger);
     case "kimi":
       return new KimiAdapter(adapterConfig);
   }

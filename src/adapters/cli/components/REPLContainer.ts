@@ -1,16 +1,17 @@
+import type { CommandUseCase } from "@/application/use-cases/execute-command";
+import type { ExecuteToolUseCase } from "@/application/use-cases/execute-tool";
+import type { GenerateCompletionUseCase } from "@/application/use-cases/generate-completion";
+import type { Logger } from "@/infrastructure/logging/logger";
 import {
   BoxRenderable,
   TextRenderable,
   type BoxOptions,
   type RenderContext,
 } from "@opentui/core";
-import { MessageList } from "./MessageList";
-import { InputBar } from "./InputBar";
-import { CommandPalette } from "./CommandPalette";
-import type { Logger } from "@/infrastructure/logging/logger";
-import type { GenerateCompletionUseCase } from "@/application/use-cases/generate-completion";
-import type { CommandUseCase } from "@/application/use-cases/execute-command";
 import { COMMAND_REGISTRY } from "../commands/registry";
+import { CommandPalette } from "./CommandPalette";
+import { InputBar } from "./InputBar";
+import { MessageList } from "./MessageList";
 
 export interface REPLContainerOptions extends Omit<
   BoxOptions,
@@ -18,6 +19,7 @@ export interface REPLContainerOptions extends Omit<
 > {
   completionUseCase: GenerateCompletionUseCase;
   commandUseCase: CommandUseCase;
+  toolUseCase: ExecuteToolUseCase;
   logger: Logger;
   initialModel: string;
 }
@@ -30,6 +32,7 @@ export class REPLContainer extends BoxRenderable {
   private readonly inputBar: InputBar;
   private readonly completionUseCase: GenerateCompletionUseCase;
   private readonly commandUseCase: CommandUseCase;
+  private readonly toolUseCase: ExecuteToolUseCase;
   private readonly logger: Logger;
   private isLoading = false;
 
@@ -37,6 +40,7 @@ export class REPLContainer extends BoxRenderable {
     const {
       completionUseCase,
       commandUseCase,
+      toolUseCase,
       logger,
       initialModel,
       ...boxOptions
@@ -51,6 +55,7 @@ export class REPLContainer extends BoxRenderable {
 
     this.completionUseCase = completionUseCase;
     this.commandUseCase = commandUseCase;
+    this.toolUseCase = toolUseCase;
     this.logger = logger;
 
     this.messageList = new MessageList(ctx, {
@@ -133,13 +138,20 @@ export class REPLContainer extends BoxRenderable {
       this.statusLine.content = "Processing...";
 
       const responseRenderable = this.messageList.addMarkdown("", true);
-      let fullContent = "";
+      const fullContent = "";
 
       for await (const chunk of this.completionUseCase.executeStream(
         userInput,
       )) {
-        fullContent += chunk;
-        responseRenderable.content = fullContent;
+        if (chunk.type === "text") {
+          this.messageList.addText(chunk.content);
+        } else if (chunk.type === "function_call") {
+          this.messageList.addFunctionCall(chunk.functionName);
+          await this.toolUseCase.execute(
+            chunk.functionName,
+            chunk.functionArguments,
+          );
+        }
       }
 
       responseRenderable.streaming = false;

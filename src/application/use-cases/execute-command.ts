@@ -1,10 +1,10 @@
 import type { CommandHandler } from "../../adapters/cli/commands/handlers.js";
 import type { CommandResult } from "../../core/entities/command.js";
 import { createCommandResult } from "../../core/entities/command.js";
-import type { Logger } from "../../infrastructure/logging/logger.js";
 import type { LLMConfig } from "../../core/entities/config.js";
-import type { LLMRepository } from "../ports/llm-repository.js";
+import type { Logger } from "../../infrastructure/logging/logger.js";
 import type { WorkingDirectoryManager } from "../../infrastructure/patterns/working-directory-manager.js";
+import type { LLMRepository } from "../ports/llm-repository.js";
 
 export class CommandUseCase {
   constructor(

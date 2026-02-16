@@ -1,6 +1,7 @@
 import type { CompletionResponse } from "@/core/entities/completion";
 import type { CompletionRequest } from "@/core/entities/completionRequest";
 import type { Message } from "@/core/entities/message";
+import type { StreamChunk } from "@/core/entities/stream-chunk";
 import type { Tool } from "@/core/entities/tool";
 import type { Logger } from "@/infrastructure/logging/logger";
 import type { ProviderAdapter, ProviderConfig } from "./provider-adapter";
@@ -8,7 +9,7 @@ import { createProviderAdapter, resolveProvider } from "./provider-factory";
 
 export interface LLMClient {
   complete(messages: Message[]): Promise<CompletionResponse>;
-  streamComplete(messages: Message[]): AsyncGenerator<string>;
+  streamComplete(messages: Message[]): AsyncGenerator<StreamChunk>;
   setModel(model: string): void;
   getModel(): string;
 }
@@ -59,7 +60,7 @@ export class LLMClientImpl implements LLMClient {
     return response;
   }
 
-  async *streamComplete(messages: Message[]): AsyncGenerator<string> {
+  async *streamComplete(messages: Message[]): AsyncGenerator<StreamChunk> {
     this.logger.info("Calling LLM stream completion", {
       model: this.model,
       messageCount: messages.length,
@@ -74,7 +75,7 @@ export class LLMClientImpl implements LLMClient {
     const newProvider = resolveProvider(model);
 
     if (oldProvider !== newProvider) {
-      this.adapter = createProviderAdapter(model, this.config);
+      this.adapter = createProviderAdapter(model, this.config, this.logger);
       this.logger.info("Provider adapter changed.", {
         from: oldProvider,
         to: newProvider,
@@ -93,10 +94,17 @@ export class LLMClientImpl implements LLMClient {
       ? [{ role: "system" as const, content: this.systemPrompt }, ...messages]
       : messages;
 
+    const tools = this.tools?.map((tool) => ({
+      type: "function",
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
+    }));
+
     return {
       messages: allMessages,
       model: this.model,
-      tools: this.tools,
+      tools: tools || [],
       temperature: this.temperature,
       maxTokens: this.maxTokens,
     };

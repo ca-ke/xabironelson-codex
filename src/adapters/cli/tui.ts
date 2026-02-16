@@ -1,30 +1,39 @@
-import { createCliRenderer, BoxRenderable } from "@opentui/core";
-import { WelcomePanel, REPLContainer } from "./components";
-import { GenerateCompletionUseCase } from "../../application/use-cases/generate-completion";
-import { CommandUseCase } from "../../application/use-cases/execute-command";
-import { BasicLogger } from "../../infrastructure/logging/logger";
-import { LLMRepositoryImpl } from "../llm/llm-repository";
-import { LLMClientImpl } from "../llm/llm-client";
-import { GeminiAdapter } from "../gemini/adapter";
-import type { ProviderConfig } from "../llm/provider-adapter";
-import { loadConfiguration } from "../../infrastructure/config/config-loader";
-import type { LLMRepository } from "../../application/ports/llm-repository";
-import type { Logger } from "../../infrastructure/logging/logger";
-import { COMMAND_REGISTRY } from "./commands/registry";
-import { WorkingDirectoryManager } from "../../infrastructure/patterns/working-directory-manager";
+import { ExecuteToolUseCase } from "@/application/use-cases/execute-tool";
+import { BoxRenderable, createCliRenderer } from "@opentui/core";
 import * as path from "path";
+import type { LLMRepository } from "../../application/ports/llm-repository";
+import { CommandUseCase } from "../../application/use-cases/execute-command";
+import { GenerateCompletionUseCase } from "../../application/use-cases/generate-completion";
 import { CONFIG_FILE_NAME } from "../../constants";
+import { loadConfiguration } from "../../infrastructure/config/config-loader";
+import type { Logger } from "../../infrastructure/logging/logger";
+import { BasicLogger } from "../../infrastructure/logging/logger";
+import { WorkingDirectoryManager } from "../../infrastructure/patterns/working-directory-manager";
+import { GeminiAdapter } from "../gemini/adapter";
+import { LLMClientImpl } from "../llm/llm-client";
+import { LLMRepositoryImpl } from "../llm/llm-repository";
+import type { ProviderConfig } from "../llm/provider-adapter";
+import { TOOL_REGISTRY } from "../tools/tool-registry";
+import { COMMAND_REGISTRY } from "./commands/registry";
+import { REPLContainer, WelcomePanel } from "./components";
 
 export interface TuiDependencies {
   repository: LLMRepository;
   completionUseCase: GenerateCompletionUseCase;
+  toolUseCase: ExecuteToolUseCase;
   commandUseCase: CommandUseCase;
   logger: Logger;
   initialModel: string;
 }
 
 export async function startTui(deps: TuiDependencies): Promise<void> {
-  const { completionUseCase, commandUseCase, logger, initialModel } = deps;
+  const {
+    completionUseCase,
+    commandUseCase,
+    toolUseCase,
+    logger,
+    initialModel,
+  } = deps;
 
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,
@@ -47,6 +56,7 @@ export async function startTui(deps: TuiDependencies): Promise<void> {
   const replContainer = new REPLContainer(renderer, {
     completionUseCase,
     commandUseCase,
+    toolUseCase,
     logger,
     initialModel,
   });
@@ -67,8 +77,8 @@ async function main(): Promise<void> {
     const systemConfig = loadConfiguration(configPath);
     const logger = new BasicLogger();
 
-    const llmConfig = systemConfig.agentConfig.llm;
-    const apiKeyEnv = llmConfig.api_key_env;
+    const agentConfig = systemConfig.agentConfig;
+    const apiKeyEnv = agentConfig.llm.api_key_env;
     const apiKey = process.env[apiKeyEnv];
 
     if (!apiKey) {
@@ -79,20 +89,21 @@ async function main(): Promise<void> {
 
     const providerConfig: ProviderConfig = {
       apiKey,
-      model: llmConfig.model,
+      model: agentConfig.llm.model,
       timeout: 30000,
+      tools: agentConfig.tools,
     };
 
-    const geminiAdapter = new GeminiAdapter(providerConfig);
+    const geminiAdapter = new GeminiAdapter(providerConfig, logger);
 
     const llmClient = new LLMClientImpl(
       geminiAdapter,
       providerConfig,
       logger,
-      systemConfig.prompt,
-      undefined,
-      llmConfig.temperature,
-      llmConfig.max_tokens,
+      agentConfig.llm.prompt,
+      agentConfig.tools,
+      agentConfig.llm.temperature,
+      agentConfig.llm.max_tokens,
     );
 
     const repository = new LLMRepositoryImpl(llmClient);
@@ -100,18 +111,24 @@ async function main(): Promise<void> {
     const workingDirectoryManager = WorkingDirectoryManager.getInstance();
     const commandUseCase = new CommandUseCase(
       COMMAND_REGISTRY,
-      llmConfig,
+      agentConfig.llm,
       logger,
       workingDirectoryManager,
       repository,
+    );
+    const toolUseCase = new ExecuteToolUseCase(
+      TOOL_REGISTRY,
+      logger,
+      workingDirectoryManager,
     );
 
     await startTui({
       repository,
       completionUseCase,
       commandUseCase,
+      toolUseCase,
       logger,
-      initialModel: llmConfig.model,
+      initialModel: agentConfig.llm.model,
     });
   } catch (error) {
     console.error("Failed to initialize TUI:", (error as Error).message);

@@ -1,12 +1,12 @@
 import {
-  ScrollBoxRenderable,
-  TextRenderable,
   MarkdownRenderable,
+  RGBA,
+  ScrollBoxRenderable,
   SyntaxStyle,
-  type ScrollBoxOptions,
+  TextRenderable,
   type RenderContext,
   type Renderable,
-  RGBA,
+  type ScrollBoxOptions,
 } from "@opentui/core";
 
 export interface Message {
@@ -69,6 +69,13 @@ export class MessageList extends ScrollBoxRenderable {
 
   addText(content: string, color?: string): TextRenderable {
     return this.addMessage({ content, color });
+  }
+
+  addFunctionCall(functionName: string): TextRenderable {
+    return this.addMessage({
+      content: functionName,
+      color: "#FF7B72",
+    });
   }
 
   addMarkdown(content: string, streaming: boolean = false): MarkdownRenderable {

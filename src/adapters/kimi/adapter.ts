@@ -1,5 +1,6 @@
 import type { CompletionResponse } from "@/core/entities/completion";
 import type { CompletionRequest } from "@/core/entities/completionRequest";
+import type { StreamChunk } from "@/core/entities/stream-chunk";
 import type {
   ProviderAdapter,
   ProviderConfig,
@@ -52,7 +53,9 @@ export class KimiAdapter implements ProviderAdapter {
     }
   }
 
-  async *streamComplete(request: CompletionRequest): AsyncGenerator<string> {
+  async *streamComplete(
+    request: CompletionRequest,
+  ): AsyncGenerator<StreamChunk> {
     const body = this.buildRequestBody(request, true);
     const url = `${this.baseURL}/chat/completions`;
 
@@ -79,6 +82,7 @@ export class KimiAdapter implements ProviderAdapter {
       const reader: ReadableStreamDefaultReader<Uint8Array> =
         response.body.getReader();
       let buffer = "";
+      const toolCallBuffer = new Map<number, { name: string; arguments: string }>();
 
       while (true) {
         const result = await reader.read();
@@ -95,13 +99,45 @@ export class KimiAdapter implements ProviderAdapter {
 
           try {
             const chunk = JSON.parse(jsonStr) as KimiStreamDelta;
-            const content = chunk?.choices?.[0]?.delta?.content;
-            if (content) {
-              yield content;
+            const delta = chunk?.choices?.[0]?.delta;
+            
+            // Handle text content
+            if (delta?.content) {
+              yield {
+                type: "text",
+                content: delta.content,
+              };
+            }
+            
+            // Handle tool calls
+            if (delta?.tool_calls) {
+              for (const toolCall of delta.tool_calls) {
+                if (toolCall.index !== undefined) {
+                  const existing = toolCallBuffer.get(toolCall.index) || { name: "", arguments: "" };
+                  if (toolCall.function?.name) {
+                    existing.name = toolCall.function.name;
+                  }
+                  if (toolCall.function?.arguments) {
+                    existing.arguments += toolCall.function.arguments;
+                  }
+                  toolCallBuffer.set(toolCall.index, existing);
+                }
+              }
             }
           } catch {
             // skip malformed JSON chunks
           }
+        }
+      }
+      
+      // Yield accumulated tool calls at the end
+      for (const toolCall of toolCallBuffer.values()) {
+        if (toolCall.name) {
+          yield {
+            type: "function_call",
+            functionName: toolCall.name,
+            functionArguments: JSON.parse(toolCall.arguments || "{}") as Record<string, unknown>,
+          };
         }
       }
     } catch (error) {
@@ -138,6 +174,17 @@ export class KimiAdapter implements ProviderAdapter {
 
     if (request.maxTokens !== undefined) {
       body.max_tokens = request.maxTokens;
+    }
+
+    if (request.tools?.length) {
+      body.tools = request.tools.map((t) => ({
+        type: "function" as const,
+        function: {
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters,
+        },
+      }));
     }
 
     return body;

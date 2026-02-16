@@ -1,13 +1,12 @@
-import * as fs from "fs";
-import * as path from "path";
-import * as yaml from "js-yaml";
 import { config as loadEnv } from "dotenv";
+import * as fs from "fs";
+import * as yaml from "js-yaml";
+import * as path from "path";
 import type { AgentConfig } from "../../core/entities/config.js";
-import { parseAgentConfig } from "../../core/entities/config.js";
+import { AgentSchema } from "../../core/entities/config.js";
 
 export interface SystemConfig {
   agentConfig: AgentConfig;
-  prompt: string;
   verbose: boolean;
 }
 
@@ -22,32 +21,15 @@ export function loadConfiguration(configFile: string): SystemConfig {
   const fileContents = fs.readFileSync(configPath, "utf-8");
   const rawConfig = yaml.load(fileContents);
 
-  const agentConfig = parseAgentConfig(rawConfig);
+  const agentConfig = AgentSchema.safeParse(rawConfig);
 
-  let prompt = "";
-  if (agentConfig.prompt) {
-    if (typeof agentConfig.prompt === "string") {
-      prompt = agentConfig.prompt;
-    } else if ("value" in agentConfig.prompt && agentConfig.prompt.value) {
-      prompt = agentConfig.prompt.value;
-    }
+  if (!agentConfig.success) {
+    throw agentConfig.error;
   }
-
-  const apiKeyEnv = agentConfig.llm.api_key_env;
-  const apiKey = process.env[apiKeyEnv];
-
-  if (!apiKey) {
-    throw new Error(
-      `API key not found!\nThe environment variable '${apiKeyEnv}' is not set.\nMake sure to create a .env file or export the variable.`,
-    );
-  }
-
-  const verbose = false;
 
   return {
-    agentConfig,
-    prompt,
-    verbose,
+    agentConfig: agentConfig.data,
+    verbose: process.env.VERBOSE === "true",
   };
 }
 
